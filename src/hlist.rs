@@ -19,6 +19,7 @@ macro_rules! ඞHList {
     };
 
 }
+#[doc(inline)]
 pub use ඞHList as HList;
 
 impl<Hd : MaybeBrand, Tl : MaybeBrand>

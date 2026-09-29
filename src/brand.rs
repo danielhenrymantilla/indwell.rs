@@ -92,7 +92,7 @@ impl<'lt, Diagnostics> Brand<'lt, Diagnostics> {
 pub
 type Unbranded<Diagnostics = ()> = Brand<'static, Diagnostics, H0>;
 
-pub trait MaybeBrand : seal::Sealed {}
+pub trait MaybeBrand : Sized + seal::Sealed {}
 
 pub(crate) use seal::Sealed as MaybeBrandSeal;
 mod seal {
@@ -152,6 +152,7 @@ macro_rules! ඞbrands {(
         let $binding = $crate::brand::ඞ::GetBrand::get_brand($binding);
     )+
 )}
+#[doc(inline)]
 pub use ඞbrands as brands;
 
 // Helpers for the macro API.

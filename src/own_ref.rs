@@ -61,19 +61,6 @@ impl<'r, 'brand, T : ?Sized, Diagnostics> OwnRef<'r, T, Brand<'brand, Diagnostic
     }
 }
 
-impl<'brand, Diagnostics> Clone for GhostInitProof<'brand, Diagnostics>
-where 
-    'brand : 'static,
-{
-    fn clone(&self) -> Self {
-        const { unreachable!() }
-    }
-}
-impl<'brand, Diagnostics> Copy for GhostInitProof<'brand, Diagnostics>
-where 
-    'brand : 'static,
-{}
-
 pub 
 struct GhostInitProof<'brand, Diagnostics>(
     PD<Brand<'brand, Diagnostics>>,

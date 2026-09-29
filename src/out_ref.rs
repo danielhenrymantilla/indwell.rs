@@ -179,32 +179,46 @@ macro_rules! ඞbranded_places {(
         let mut $binding = $crate::out_ref::uninit $(::<$T, _>)? ($binding);
     )+
 )}
+#[doc(inline)]
 pub use ඞbranded_places as branded_places;
 
+#[::implied_bounds::implied_bounds]
 pub
-trait Project<'s, Brands : MaybeBrand> {
-    type Projection;
-    fn project_impl(
-        out_ref: OutRef<'s, Self, Brands>,
-    ) -> Self::Projection;
+trait BrandsFor<Struct> : MaybeBrand
+where 
+    Struct : Project<Self>,
+{}
 
-    type HeadBrand;
-    type GhostInits;
-    fn indwell(
-        _: Self::GhostInits,
-        out_ref: OutRef<'s, Self, Brands>,
-    ) -> OwnRef<'s, Self, Self::HeadBrand>;
-}
+impl<Brands, Struct> BrandsFor<Struct> for Brands
+where
+    Self : MaybeBrand,
+    Struct : Project<Brands>,
+{}
 
 impl<'r, 'brand, T : ?Sized, Brands : MaybeBrand>
     OutRef<'r, T, Brands>
 {
     pub
     fn project<'s>(self: &'s mut OutRef<'r, T, Brands>)
-      -> <T as Project<'s, Brands>>::Projection
+      -> <T as Project<Brands>>::Projection<'s>
     where
-        T : Project<'s, Brands>,
+        T : Project<Brands>,
     {
         Project::project_impl(self.r())
     }
+}
+
+pub
+trait Project<Brands : MaybeBrand> {
+    type Projection<'s>;
+    fn project_impl<'s>(
+        out_ref: OutRef<'s, Self, Brands>,
+    ) -> Self::Projection<'s>;
+
+    // type HeadBrand;
+    // type GhostInits;
+    // fn indwell(
+    //     _: Self::GhostInits,
+    //     out_ref: OutRef<'s, Self, Brands>,
+    // ) -> OwnRef<'s, Self, Self::HeadBrand>;
 }
