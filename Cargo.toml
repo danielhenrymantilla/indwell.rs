@@ -1,0 +1,9 @@
+[package]
+name = "enroot"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+
+[dev-dependencies]
+rand.version = "0.10.3" 
