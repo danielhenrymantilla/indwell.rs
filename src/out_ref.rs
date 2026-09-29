@@ -182,21 +182,28 @@ macro_rules! ඞbranded_places {(
 pub use ඞbranded_places as branded_places;
 
 pub
-trait Project<'s, Brands> {
+trait Project<'s, Brands : MaybeBrand> {
     type Projection;
     fn project_impl(
         out_ref: OutRef<'s, Self, Brands>,
     ) -> Self::Projection;
+
+    type HeadBrand;
+    type GhostInits;
+    fn indwell(
+        _: Self::GhostInits,
+        out_ref: OutRef<'s, Self, Brands>,
+    ) -> OwnRef<'s, Self, Self::HeadBrand>;
 }
 
-impl<'r, 'brand, T : ?Sized, Brands>
+impl<'r, 'brand, T : ?Sized, Brands : MaybeBrand>
     OutRef<'r, T, Brands>
 {
     pub
-    fn project<'s>(self: &'s mut Self)
-      -> <Self as Project<'s, Brands>>::Projection
+    fn project<'s>(self: &'s mut OutRef<'r, T, Brands>)
+      -> <T as Project<'s, Brands>>::Projection
     where
-        Self : Project<'s, Brands,>,
+        T : Project<'s, Brands>,
     {
         Project::project_impl(self.r())
     }

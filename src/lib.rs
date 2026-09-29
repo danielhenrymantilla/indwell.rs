@@ -13,6 +13,7 @@ pub
 mod prelude {
     pub use crate::{
         brand::{Brand, MaybeBrand, Unbranded, brands},
+        hlist::HList,
         maybe_dropped::MaybeDropped,
         own_ref::OwnRef,
         out_ref::{BrandedPlace, OutRef, branded_places},

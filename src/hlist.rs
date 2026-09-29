@@ -1,8 +1,10 @@
-#[rustfmt::skip]
+use crate::prelude::*;
+
+#[macro_export]
 /// ```rust ,ignore
 /// HList![];
 /// ```
-macro_rules! HList {
+macro_rules! ඞHList {
     [] => { () };
 
     [ $Hd:ty, ..$Rest:ty ] => {
@@ -12,10 +14,21 @@ macro_rules! HList {
     [ $Hd:ty $(, $Rest:ty)* $(,)? ] => {
         (
             $Hd,
-            $crate::HList[$($Rest),*]
+            $crate::hlist::HList![$($Rest),*]
         )
     };
 
 }
+pub use ඞHList as HList;
 
-type X<Hd, Tl> = HList![Hd, ..Tl];
+impl<Hd : MaybeBrand, Tl : MaybeBrand>
+    crate::brand::MaybeBrandSeal
+for
+    HList![Hd, ..Tl]
+{}
+
+impl<Hd : MaybeBrand>
+    crate::brand::MaybeBrandSeal
+for
+    HList![Hd]
+{}

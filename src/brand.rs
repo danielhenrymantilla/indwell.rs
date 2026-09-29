@@ -93,12 +93,18 @@ pub
 type Unbranded<Diagnostics = ()> = Brand<'static, Diagnostics, H0>;
 
 pub trait MaybeBrand : seal::Sealed {}
-impl<H : seal::IsHelper, Diagnostics> MaybeBrand for Brand<'_, Diagnostics, H> {}
 
+pub(crate) use seal::Sealed as MaybeBrandSeal;
 mod seal {
     use super::*;
 
-    pub trait Sealed {}
+
+    pub
+    trait Sealed {}
+
+    #[diagnostic::do_not_recommend]
+    impl<T : Sealed> MaybeBrand for T {}
+
     impl<H : IsHelper, Diagnostics> Sealed for Brand<'_, Diagnostics, H> {}
 
     pub
@@ -108,15 +114,6 @@ mod seal {
 
     #[expect(coherence_leak_check)]
     impl<'brand> IsHelper for H0 {}
-
-    impl<Hd : MaybeBrand, Tl : MaybeBrand>
-        MaybeBrand
-    for
-        HList![Hd, ..Tl]
-    {
-        type Head = 
-    }
-
 }
 
 impl Brand<'_> {
