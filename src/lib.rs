@@ -7,6 +7,7 @@ use ::core::{
     },
     ptr,
 };
+use ::proc_macros;
 
 use prelude::*;
 pub
@@ -16,7 +17,7 @@ mod prelude {
         hlist::HList,
         maybe_dropped::MaybeDropped,
         own_ref::OwnRef,
-        out_ref::{BrandedPlace, OutRef, branded_places},
+        out_ref::{BrandedPlace, OutRef, OutRefProject, branded_places},
     };
 }
 

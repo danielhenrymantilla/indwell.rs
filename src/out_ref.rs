@@ -189,13 +189,13 @@ pub use ඞbranded_places as branded_places;
 pub
 trait BrandsFor<Struct> : PlaceBrand
 where
-    Struct : Project<Self>,
+    Struct : OutRefProject<Self>,
 {}
 
 impl<Brands, Struct> BrandsFor<Struct> for Brands
 where
     Self : PlaceBrand,
-    Struct : Project<Brands>,
+    Struct : OutRefProject<Brands>,
 {}
 
 impl<'r, 'brand, T : ?Sized, Brands : PlaceBrand>
@@ -203,16 +203,18 @@ impl<'r, 'brand, T : ?Sized, Brands : PlaceBrand>
 {
     pub
     fn project<'s>(self: &'s mut OutRef<'r, T, Brands>)
-      -> <T as Project<Brands>>::Projection<'s>
+      -> <T as OutRefProject<Brands>>::Projection<'s>
     where
-        T : Project<Brands>,
+        T : OutRefProject<Brands>,
     {
-        Project::project_impl(self.r())
+        OutRefProject::project_impl(self.r())
     }
 }
 
+pub use crate::proc_macros::OutRefProject;
+
 pub
-trait Project<Brands : PlaceBrand> {
+trait OutRefProject<Brands : PlaceBrand> {
     type Projection<'s>;
     fn project_impl<'s>(
         out_ref: OutRef<'s, Self, Brands>,

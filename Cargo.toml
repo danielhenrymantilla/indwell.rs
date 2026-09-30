@@ -1,10 +1,16 @@
 [package]
 name = "enroot"
-version = "0.1.0"
+version = "0.1.0"  # Keep in sync
 edition = "2024"
 
 [dependencies]
 implied-bounds.version = "0.1.0"
 
+[dependencies.proc_macros]
+package = "enroot-proc_macros"
+path = "src/proc_macros"
+version = "=0.1.0"  # Keep in sync
+
+
 [dev-dependencies]
-rand.version = "0.10.3" 
+rand.version = "0.10.3"

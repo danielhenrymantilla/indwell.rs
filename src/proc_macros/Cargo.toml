@@ -1,0 +1,17 @@
+[lib]
+path = "mod.rs"
+proc-macro = true
+
+[package]
+name = "enroot-proc_macros"
+version = "0.1.0"  # Keep in sync
+edition = "2024"
+
+[dependencies]
+proc-macro2.version = "1.0.107"
+quote.version = "1.0.47"
+syn.version = "3.0.6"
+syn.features = ["full", "visit-mut"]
+
+# pretty-please.optional = true
+prettyplease.version = "0.3.0"
