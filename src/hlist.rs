@@ -23,13 +23,25 @@ macro_rules! ඞHList {
 pub use ඞHList as HList;
 
 impl<Hd : MaybeBrand, Tl : MaybeBrand>
-    crate::brand::MaybeBrandSeal
+    crate::brand::ImplMaybeBrand
 for
     HList![Hd, ..Tl]
 {}
 
 impl<Hd : MaybeBrand>
-    crate::brand::MaybeBrandSeal
+    crate::brand::ImplMaybeBrand
+for
+    HList![Hd]
+{}
+
+impl<Hd : PlaceBrand, Tl : PlaceBrand>
+    PlaceBrand
+for
+    HList![Hd, ..Tl]
+{}
+
+impl<Hd : PlaceBrand>
+    PlaceBrand
 for
     HList![Hd]
 {}

@@ -1,5 +1,3 @@
-use crate::brand::seal2::ShatterShard;
-
 use super::*;
 
 // We want two pair of type "ctors" so that:
@@ -53,48 +51,29 @@ macro_rules! with_h1_h0 {( $($type_defs:tt)* ) => (
 )}
 use with_h1_h0;
 
+pub
+trait MaybeBrand
+:
+    Sized + Send + Sync + seal::Sealed +
+{}
 
 pub
-struct Brand<'lt, Diagnostics = (), H : seal::IsHelper = H1<'lt>>(
-    PD<(fn(&'lt ()), fn() -> Diagnostics, H)>,
+trait PlaceBrand
+:
+    MaybeBrand +
+{}
+
+pub
+struct Brand<'lt, Place = (), H : seal::IsHelper = H1<'lt>>(
+    PD<(fn(&'lt ()), fn() -> Place, H)>,
 );
 
-mod seal2 {
-    pub trait ShatterShard<const N: usize, Diagnostics> {}
-    impl<const N: usize, Diagnostics> ShatterShard<N, Diagnostics> for () {}
-}
-
-impl<'lt, Diagnostics> Brand<'lt, Diagnostics> {
-    pub fn shatter(self) -> (
-        Brand<'lt, impl ShatterShard<0, Diagnostics>>,
-        Brand<'lt, impl ShatterShard<1, Diagnostics>>,
-        Brand<'lt, impl ShatterShard<2, Diagnostics>>,
-        Brand<'lt, impl ShatterShard<3, Diagnostics>>,
-        Brand<'lt, impl ShatterShard<4, Diagnostics>>,
-        Brand<'lt, impl ShatterShard<5, Diagnostics>>,
-        Brand<'lt, impl ShatterShard<6, Diagnostics>>,
-        Brand<'lt, impl ShatterShard<7, Diagnostics>>,
-    )
-    {
-        (
-            Brand::<()>(PD),
-            Brand::<()>(PD),
-            Brand::<()>(PD),
-            Brand::<()>(PD),
-            Brand::<()>(PD),
-            Brand::<()>(PD),
-            Brand::<()>(PD),
-            Brand::<()>(PD),
-        )
-    }
-}
+impl<'lt, Place> PlaceBrand for Brand<'lt, Place> {}
 
 pub
-type Unbranded<Diagnostics = ()> = Brand<'static, Diagnostics, H0>;
+type Unbranded<Place = ()> = Brand<'static, Place, H0>;
 
-pub trait MaybeBrand : Sized + seal::Sealed {}
-
-pub(crate) use seal::Sealed as MaybeBrandSeal;
+pub(crate) use seal::Sealed as ImplMaybeBrand;
 mod seal {
     use super::*;
 
@@ -103,9 +82,9 @@ mod seal {
     trait Sealed {}
 
     #[diagnostic::do_not_recommend]
-    impl<T : Sealed> MaybeBrand for T {}
+    impl<T : Sealed + Send + Sync> MaybeBrand for T {}
 
-    impl<H : IsHelper, Diagnostics> Sealed for Brand<'_, Diagnostics, H> {}
+    impl<H : IsHelper, Place> Sealed for Brand<'_, Place, H> {}
 
     pub
     trait IsHelper {}
@@ -128,7 +107,8 @@ impl Brand<'_> {
     }
 }
 
-pub struct Place<T>(pub T);
+pub trait Place<T> {}
+impl<T> Place<T> for () {}
 
 #[macro_export]
 macro_rules! ඞbrands {(
@@ -139,12 +119,15 @@ macro_rules! ඞbrands {(
         let $binding = &{
             $crate::brand::ඞ::borrower_with_impl_dropck_thus_lower_bounding_the_lifetime(
                 $binding,
+                // the place here is merely diagnostical, it does not really have
+                // "branding" capabilities.
+                //
+                // Indeed, no need to do `Brand<'brand, impl use<Brand<'brand>> + Place<$binding>`,
+                // when `Brand<'brand, impl use<> + Place<$binding>>` works just as well.
                 {
-                    #[allow(warnings, clippy::all)]
-                    trait $binding {} impl $binding for () {}
-                    fn $binding() -> $crate::brand::Place<impl $binding> {
-                        $crate::brand::Place(())
-                    }
+                    #[allow(nonstandard_style)]
+                    enum $binding {}
+                    fn $binding() -> impl use<> + $crate::brand::Place<$binding> {}
                     $binding
                 },
             )
@@ -161,19 +144,17 @@ mod ඞ {
     use super::*;
 
     pub
-    trait GetBrand<'brand, Diagnostics> {
-        fn get_brand(_: &Self) -> Brand<'brand, Diagnostics>;
+    trait GetBrand<'brand, Place> {
+        fn get_brand(_: &Self) -> Brand<'brand, Place>;
     }
 
-    mod sealed {
-        pub trait Borrowee {}
-    }
+    pub trait Borrowee {}
 
     #[inline(always)]
     pub
-    fn borrowee_upper_bounding_the_lifetime() -> impl sealed::Borrowee {
+    fn borrowee_upper_bounding_the_lifetime() -> impl Borrowee {
         struct S {}
-        impl sealed::Borrowee for S {}
+        impl Borrowee for S {}
         S {}
     }
 
@@ -181,14 +162,14 @@ mod ඞ {
     /// Safety: can only be called by the macro API.
     #[inline(always)]
     pub
-    fn borrower_with_impl_dropck_thus_lower_bounding_the_lifetime<'r, Diagnostics>(
-        _: &'r impl sealed::Borrowee,
-        _: impl FnOnce() -> Diagnostics,
-    ) -> impl GetBrand<'r, Diagnostics> {
+    fn borrower_with_impl_dropck_thus_lower_bounding_the_lifetime<'r, Place>(
+        _: &'r impl Borrowee,
+        _: impl FnOnce() -> Place,
+    ) -> impl GetBrand<'r, Place> {
         struct S {}
-        impl<'brand, Diagnostics> GetBrand<'brand, Diagnostics> for S {
+        impl<'brand, Place> GetBrand<'brand, Place> for S {
             #[inline(always)]
-            fn get_brand(_: &Self) -> Brand<'brand, Diagnostics> {
+            fn get_brand(_: &Self) -> Brand<'brand, Place> {
                 Brand(PD)
             }
         }

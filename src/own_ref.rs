@@ -46,15 +46,15 @@ impl<'r, T : ?Sized, B : MaybeBrand> OwnRef<'r, T, B> {
     }
 }
 
-impl<'r, 'brand, T : ?Sized, Diagnostics> OwnRef<'r, T, Brand<'brand, Diagnostics>> {
-    #[must_use = "this is a leaky pattern until you feed this into "]
+impl<'r, T : ?Sized, Brand : PlaceBrand> OwnRef<'r, T, Brand> {
+    #[must_use = "this is a leaky pattern until you feed this into `.indwell()`"]
     pub
-    fn into_ghost_init(self: OwnRef<'r, T, Brand<'brand, Diagnostics>>) -> GhostInitProof<'brand, Diagnostics> {
+    fn into_ghost_init(self: OwnRef<'r, T, Brand>) -> GhostInitProof<Brand> {
         GhostInitProof(PD)
     }
 
     pub
-    fn unbrand(self: OwnRef<'r, T, Brand<'brand, Diagnostics>>) -> OwnRef<'r, T> {
+    fn unbrand(self: OwnRef<'r, T, Brand>) -> OwnRef<'r, T> {
         unsafe {
             OwnRef::from_raw(self.into_raw())
         }
@@ -62,22 +62,25 @@ impl<'r, 'brand, T : ?Sized, Diagnostics> OwnRef<'r, T, Brand<'brand, Diagnostic
 }
 
 pub 
-struct GhostInitProof<'brand, Diagnostics>(
-    PD<Brand<'brand, Diagnostics>>,
+struct GhostInitProof<B : PlaceBrand>(
+    PD<B>,
 );
 
-pub trait Is { type Equal : ?Sized; }
-impl<T : ?Sized> Is for T { type Equal = T; }
+pub trait Is { type EqualTo : ?Sized; }
+impl<T : ?Sized> Is for T { type EqualTo = T; }
 
-impl<'brand, Diagnostics> GhostInitProof<'brand, Diagnostics> {
+impl<Brand : PlaceBrand> GhostInitProof<Brand> {
     pub
-    fn indwell<'r, T, Diagnostics2>(self, r: impl InitProvable<'r, 'brand, T, Diagnostics2>) -> OwnRef<'r, T, Brand<'brand, Diagnostics>>
+    fn indwell<'r, T, Brand2 : PlaceBrand>(
+        self,
+        r: impl InitProvable<'r, T, Brand2>
+    ) -> OwnRef<'r, T, Brand>
     where 
-        Diagnostics2 : Is<Equal = Diagnostics>,
-        // Diagnostics : Is<Equal = Diagnostics2>,
+        Brand2 : Is<EqualTo = Brand>,
     {
-        fn cast<'r, 'brand, T, D>(it: OwnRef<'r, T, Brand<'brand, D>>)
-          -> OwnRef<'r, T, Brand<'brand, <D as Is>::Equal>>
+        fn cast<'r, T, Brand : PlaceBrand>(
+            it: OwnRef<'r, T, Brand>,
+        ) -> OwnRef<'r, T, <Brand as Is>::EqualTo>
         {
             it
         }
@@ -87,8 +90,12 @@ impl<'brand, Diagnostics> GhostInitProof<'brand, Diagnostics> {
 }
 
 pub
-trait InitProvable<'r, 'brand, T, Diagnostics> {
-    fn proven_init(_: GhostInitProof<'brand, Diagnostics>, this: Self) -> OwnRef<'r, T, Brand<'brand, Diagnostics>>;
+trait InitProvable<'r, T, B : PlaceBrand> {
+    fn proven_init(
+        _: GhostInitProof<B>,
+        this: Self,
+    ) -> OwnRef<'r, T, B>
+    ;
 }
 
 impl<'r, T : ?Sized> OwnRef<'r, T, Unbranded> {

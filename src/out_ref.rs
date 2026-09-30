@@ -6,7 +6,7 @@ use super::*;
 pub
 struct OutRef<'r, T : ?Sized, B : MaybeBrand = Unbranded> {
     raw: ptr::NonNull<T>,
-    _phantom: PD<fn(B, fn(&'r (), &mut T))>,
+    _phantom: PD<fn(fn(&'r (), &mut T)) -> B>,
     _owns_t : PD<T>,
 }
 
@@ -83,7 +83,7 @@ impl<'r, T : ?Sized, B : MaybeBrand> OutRef<'r, T, B> {
 
     pub
     fn write(self, value: T) -> OwnRef<'r, T, B>
-    where 
+    where
         T : Sized,
     {
         unsafe {
@@ -99,24 +99,28 @@ impl<'r, T : ?Sized, B : MaybeBrand> OutRef<'r, T, B> {
     }
 }
 
-impl<'r, T : ?Sized> OutRef<'r, T> {
+impl<'r, T : ?Sized> OutRef<'r, T, Unbranded> {
     pub
-    fn branded<Brand : MaybeBrand>(self: OutRef<'r, T>, _witnessed: Brand) -> OutRef<'r, T, Brand> {
+    fn branded<Place : PlaceBrand>(
+        self: OutRef<'r, T, Unbranded>,
+        _witnessed: Place,
+    ) -> OutRef<'r, T, Place>
+    {
         unsafe {
             OutRef::from_raw_branded_unchecked(self.into_raw())
         }
     }
 }
 
-impl<'r, 'brand, T : Sized, Diagnostics>
-    InitProvable<'r, 'brand, T, Diagnostics>
+impl<'r, T : Sized, Place : PlaceBrand>
+    InitProvable<'r, T, Place>
 for
-    OutRef<'r, T, Brand<'brand, Diagnostics>>
-{    
+    OutRef<'r, T, Place>
+{
     fn proven_init(
-        _: GhostInitProof<'brand, Diagnostics>,
-        out_ref: OutRef<'r, T, Brand<'brand, Diagnostics>>,
-    ) -> OwnRef<'r, T, Brand<'brand, Diagnostics>>
+        _: GhostInitProof<Place>,
+        out_ref: OutRef<'r, T, Place>,
+    ) -> OwnRef<'r, T, Place>
     {
         unsafe {
             OwnRef::from_raw_branded_unchecked(out_ref.into_raw())
@@ -125,43 +129,42 @@ for
 }
 
 pub
-struct BrandedPlace<'brand, T, Diagnostics = ()> {
+struct BrandedPlace<T, Place : PlaceBrand> {
     value: MU<T>,
-    _brand: PD<(Brand<'brand>, fn() -> Diagnostics)>,
+    _brand: PD<fn() -> Place>,
 }
 
 pub
-fn uninit<'brand, T, Diagnostics>(_witnessed: Brand<'brand, Diagnostics>)
-  -> BrandedPlace<'brand, T, Diagnostics>
+fn uninit<T, Place : PlaceBrand>(
+    witnessed: Place,
+) -> BrandedPlace<T, Place>
 {
-    BrandedPlace { value: MU::uninit(), _brand: PD }
+    BrandedPlace::uninit(witnessed)
 }
 
-impl<'brand, T, Diagnostics> BrandedPlace<'brand, T, Diagnostics> {
+impl<T, Place : PlaceBrand> BrandedPlace<T, Place> {
     pub
-    fn uninit(_witnessed: Brand<'brand>) -> BrandedPlace<'brand, T, Diagnostics> {
+    fn uninit(_witnessed: Place) -> BrandedPlace<T, Place> {
         Self { value: MU::uninit(), _brand: PD }
     }
 
     pub
-    fn as_out_ref(self: &mut BrandedPlace<'brand, T, Diagnostics>)
-      -> OutRef<'_, T, Brand<'brand, Diagnostics>>
-    {
+    fn as_out_ref(self: &mut BrandedPlace<T, Place>) -> OutRef<'_, T, Place> {
         unsafe {
             OutRef::from_raw_branded_unchecked(ptr::NonNull::from(&mut self.value).cast())
         }
     }
 }
 
-impl<'r, 'brand, T : Sized, Diagnostics>
-    InitProvable<'r, 'brand, T, Diagnostics>
+impl<'r, T : Sized, Place : PlaceBrand>
+    InitProvable<'r, T, Place>
 for
-    &'r mut BrandedPlace<'brand, T, Diagnostics>
-{    
+    &'r mut BrandedPlace<T, Place>
+{
     fn proven_init(
-        _: GhostInitProof<'brand, Diagnostics>,
-        place: &'r mut BrandedPlace<'brand, T, Diagnostics>,
-    ) -> OwnRef<'r, T, Brand<'brand, Diagnostics>>
+        _: GhostInitProof<Place>,
+        place: &'r mut BrandedPlace<T, Place>,
+    ) -> OwnRef<'r, T, Place>
     {
         unsafe {
             OwnRef::from_raw_branded_unchecked(ptr::NonNull::from(&mut place.value).cast())
@@ -184,18 +187,18 @@ pub use ඞbranded_places as branded_places;
 
 #[::implied_bounds::implied_bounds]
 pub
-trait BrandsFor<Struct> : MaybeBrand
-where 
+trait BrandsFor<Struct> : PlaceBrand
+where
     Struct : Project<Self>,
 {}
 
 impl<Brands, Struct> BrandsFor<Struct> for Brands
 where
-    Self : MaybeBrand,
+    Self : PlaceBrand,
     Struct : Project<Brands>,
 {}
 
-impl<'r, 'brand, T : ?Sized, Brands : MaybeBrand>
+impl<'r, 'brand, T : ?Sized, Brands : PlaceBrand>
     OutRef<'r, T, Brands>
 {
     pub
@@ -209,7 +212,7 @@ impl<'r, 'brand, T : ?Sized, Brands : MaybeBrand>
 }
 
 pub
-trait Project<Brands : MaybeBrand> {
+trait Project<Brands : PlaceBrand> {
     type Projection<'s>;
     fn project_impl<'s>(
         out_ref: OutRef<'s, Self, Brands>,
