@@ -1,56 +1,5 @@
 use super::*;
 
-// We want two pair of type "ctors" so that:
-//  1. `H1<'lt> <: H0`, but
-//  1. `H1<'lt>` be invariant over `'lt`.
-with_h1_h0! {
-    // We got non-covariance because of `fn(&'lt (), _)`.
-    // And non-contravariance because of `fn(_, fn(&'lt ())`.
-    type H1<'lt> = fn(&'lt (), fn(&'lt ()));
-    // - Since `&'static () <: &'lt ()`, we have
-    //   `fn(&'lt (), _) <: fn(&'static (), _)`.
-    // - `fn(&()) = for<'a> fn(&'a ()) <: fn(&'lt ())` (the "pick `for<'a = 'lt>` rule"). So
-    //   `fn(_, fn(&'lt ()) <: fn(_, fn(&()))`.
-    // Thus, `H1<'lt> <: H0`.
-    type H0 = fn(&'static (), fn(&()));
-}
-// where:
-macro_rules! with_h1_h0 {( $($type_defs:tt)* ) => (
-    // 1. Emit it.
-    $($type_defs)*
-
-    /// 2. Check Check `H1<'_> <: H0`:
-    /// 
-    /// ```rust
-    #[doc = stringify!($($type_defs)*)]
-    ///
-    /// fn _assert_h1_subtypes_h0<'lt>(h: *const *const H1<'lt>) -> *const *const H0 {
-    ///     h
-    /// }
-    /// ```
-    /// 
-    /// 3. Check `H1<'_>` is indeed invariant over `<'_>`:
-    /// 
-    /// ```rust ,compile_fail
-    #[doc = stringify!($($type_defs)*)]
-    /// 
-    /// fn assert_covariant<'x>(x: *const *const H1<'static>) -> *const *const H1<'x> {
-    ///     x // Error, non-covariant.
-    /// }
-    /// ```
-    /// 
-    /// ```rust ,compile_fail
-    #[doc = stringify!($($type_defs)*)]
-    ///
-    /// fn assert_contravariant<'x>(x: *const *const H1<'x>) -> *const *const H1<'static> {
-    ///     x // Error, non-contravariant.
-    /// }
-    /// ```
-    /// 
-    const _ASSERT_INVARIANT: () = ();
-)}
-use with_h1_h0;
-
 pub
 trait MaybeBrand
 :
@@ -64,14 +13,14 @@ trait PlaceBrand
 {}
 
 pub
-struct Brand<'lt, Place = (), H : seal::IsHelper = H1<'lt>>(
-    PD<(fn(&'lt ()), fn() -> Place, H)>,
+struct Brand<'lt, Place = ()>(
+    PD<fn(&mut &'lt ()) -> Place>,
 );
 
 impl<'lt, Place> PlaceBrand for Brand<'lt, Place> {}
 
 pub
-type Unbranded<Place = ()> = Brand<'static, Place, H0>;
+type Unbranded<Place = ()> = Brand<'static, Place>;
 
 pub(crate) use seal::Sealed as ImplMaybeBrand;
 mod seal {
@@ -84,15 +33,7 @@ mod seal {
     #[diagnostic::do_not_recommend]
     impl<T : Sealed + Send + Sync> MaybeBrand for T {}
 
-    impl<H : IsHelper, Place> Sealed for Brand<'_, Place, H> {}
-
-    pub
-    trait IsHelper {}
-
-    impl<'brand> IsHelper for H1<'brand> {}
-
-    #[expect(coherence_leak_check)]
-    impl<'brand> IsHelper for H0 {}
+    impl<Place> Sealed for Brand<'_, Place> {}
 }
 
 impl Brand<'_> {
