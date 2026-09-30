@@ -12,7 +12,7 @@ use prelude::*;
 pub
 mod prelude {
     pub use crate::{
-        brand::{Brand, PlaceBrand, MaybeBrand, Unbranded, brands},
+        brand::{Brand, PlaceBrand, MaybeBrand, Unbranded, new_brands},
         hlist::HList,
         maybe_dropped::MaybeDropped,
         own_ref::OwnRef,
@@ -20,10 +20,10 @@ mod prelude {
     };
 }
 
-pub 
+pub
 mod brand;
 
-pub 
+pub
 mod hlist;
 
 pub

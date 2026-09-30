@@ -52,18 +52,18 @@ pub trait Place<T> {}
 impl<T> Place<T> for () {}
 
 #[macro_export]
-macro_rules! ඞbrands {(
+macro_rules! ඞnew_brands {(
     as let$($binding:ident),+ $(,)?
 ) => (
     $(
-        let $binding = &$crate::brand::ඞ::borrowee_upper_bounding_the_lifetime();
+        let $binding = $crate::brand::ඞ::borrowee_upper_bounding_the_lifetime();
         let $binding = &{
             $crate::brand::ඞ::borrower_with_impl_dropck_thus_lower_bounding_the_lifetime(
-                $binding,
+                &$binding,
                 // the place here is merely diagnostical, it does not really have
                 // "branding" capabilities.
                 //
-                // Indeed, no need to do `Brand<'brand, impl use<Brand<'brand>> + Place<$binding>`,
+                // And no need to do `Brand<'brand, impl use<Brand<'brand>> + Place<$binding>`,
                 // when `Brand<'brand, impl use<> + Place<$binding>>` works just as well.
                 {
                     #[allow(nonstandard_style)]
@@ -77,7 +77,7 @@ macro_rules! ඞbrands {(
     )+
 )}
 #[doc(inline)]
-pub use ඞbrands as brands;
+pub use ඞnew_brands as new_brands;
 
 // Helpers for the macro API.
 #[doc(hidden)] /** Not part of the public API */ pub

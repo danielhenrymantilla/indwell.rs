@@ -176,7 +176,7 @@ for
 macro_rules! ඞbranded_places {(
     let $($binding:ident $(: $T:ty)?),+ $(,)?
 ) => (
-    $crate::brand::brands!(as let $($binding),+);
+    $crate::brand::new_brands!(as let $($binding),+);
     $(
         #[allow(unused_mut)]
         let mut $binding = $crate::out_ref::uninit $(::<$T, _>)? ($binding);
