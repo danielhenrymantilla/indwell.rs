@@ -15,9 +15,9 @@ impl<'r, T : ?Sized, B : MaybeBrand> Drop for OwnRef<'r, T, B> {
 }
 
 impl<'r, T : ?Sized, B : MaybeBrand> OwnRef<'r, T, B> {
-    pub 
+    pub
     fn deref_move(self: OwnRef<'r, T, B>) -> (T, &'r mut MaybeDropped<T>)
-    where 
+    where
         T : Sized,
     {
         let raw = self.into_raw();
@@ -47,7 +47,7 @@ impl<'r, T : ?Sized, B : MaybeBrand> OwnRef<'r, T, B> {
 }
 
 impl<'r, T : ?Sized, Brand : PlaceBrand> OwnRef<'r, T, Brand> {
-    #[must_use = "this is a leaky pattern until you feed this into `.indwell()`"]
+    #[must_use = "this is leaking memory unless you call `.indwell()`"]
     pub
     fn into_ghost_init(self: OwnRef<'r, T, Brand>) -> GhostInitProof<Brand> {
         GhostInitProof(PD)
@@ -61,7 +61,7 @@ impl<'r, T : ?Sized, Brand : PlaceBrand> OwnRef<'r, T, Brand> {
     }
 }
 
-pub 
+pub
 struct GhostInitProof<B : PlaceBrand>(
     PD<B>,
 );
@@ -75,7 +75,7 @@ impl<Brand : PlaceBrand> GhostInitProof<Brand> {
         self,
         r: impl InitProvable<'r, T, Brand2>
     ) -> OwnRef<'r, T, Brand>
-    where 
+    where
         Brand2 : Is<EqualTo = Brand>,
     {
         fn cast<'r, T, Brand : PlaceBrand>(

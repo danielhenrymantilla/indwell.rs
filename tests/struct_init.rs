@@ -1,33 +1,21 @@
 #![allow(unused)]
 #![warn(unused_must_use)]
 
-use ::core::{
-    ptr,
-};
+use ::core::ptr;
 use ::enroot::prelude::*;
 
 fn demo_init<'r, Brand : PlaceBrand>(
     out_foo: OutRef<'r, Foo, Brand>
 ) -> OwnRef<'r, Foo, Brand>
 {
-    let mut out_foo = Foo::field_init_base(out_foo);
-    // branded_places!(let a: Foo, evil: Foo);
-    // [
-    //     Foo::field_init_base(a.as_out_ref()),
-    //     Foo::field_init_base(evil.as_out_ref()),
-    // ];
+    let mut out_foo = Foo::append_field_init_brands(out_foo);
 
     let out_fields = out_foo.project();
-    let own_fields = FooOwnRefs {
-        s: out_fields.s.write("heh".into()),
-        x: out_fields.x.write(42),
-    };
-    // [
-    //     own_fields.s.into_ghost_init(),
-    //     own_fields.x.into_ghost_init(),
-    // ];
+    let s = out_fields.s.write("heh".into());
+    let x = out_fields.x.write(42);
+    let owned_fields = FooOwnRefs { s, x };
 
-    own_fields.into_ghost_init().indwell(out_foo)
+    owned_fields.into_ghost_init().indwell(out_foo)
 }
 
 struct Foo {
@@ -41,7 +29,7 @@ const _: () = {
     enum x {}
 
     impl Foo {
-        fn field_init_base<'r, FooPlace : PlaceBrand>(
+        fn append_field_init_brands<'r, FooPlace : PlaceBrand>(
             out_ref: OutRef<'r, Foo, FooPlace>
         ) -> OutRef<'r, Foo, HList![
             FooPlace,
@@ -62,35 +50,38 @@ const _: () = {
     }
 };
 
-struct FooOutRefs<'s, BS : PlaceBrand, BX : PlaceBrand> {
-    s: OutRef<'s, String, BS>,
-    x: OutRef<'s, i32, BX>,
+struct FooOutRefs<'s, PlaceS : PlaceBrand, PlaceX : PlaceBrand> {
+    s: OutRef<'s, String, PlaceS>,
+    x: OutRef<'s, i32, PlaceX>,
 }
 
-struct FooOwnRefs<'s, BS : PlaceBrand, BX : PlaceBrand> {
-    s: OwnRef<'s, String, BS>,
-    x: OwnRef<'s, i32, BX>,
+struct FooOwnRefs<'s, PlaceS : PlaceBrand, PlaceX : PlaceBrand> {
+    s: OwnRef<'s, String, PlaceS>,
+    x: OwnRef<'s, i32, PlaceX>,
 }
 
-impl<'s, BS : PlaceBrand, BX : PlaceBrand> FooOwnRefs<'s, BS, BX> {
-    fn into_ghost_init(self) -> FooGhostInit<BS, BX> {
+impl<'s, PlaceS : PlaceBrand, PlaceX : PlaceBrand> FooOwnRefs<'s, PlaceS, PlaceX> {
+    #[must_use = "this is leaking memory unless you call `.indwell()`"]
+    fn into_ghost_init(self) -> FooGhostInit<PlaceS, PlaceX> {
         let Self { s, x } = self;
-        let s = s.into_ghost_init();
-        let x = x.into_ghost_init();
-        FooGhostInit { s, x }
+        FooGhostInit {
+            s: s.into_ghost_init(),
+            x: x.into_ghost_init(),
+        }
     }
 }
 
-struct FooGhostInit<BS : PlaceBrand, BX : PlaceBrand> {
-    s: ::enroot::own_ref::GhostInitProof<BS>,
-    x: ::enroot::own_ref::GhostInitProof<BX>,
+struct FooGhostInit<PlaceS : PlaceBrand, PlaceX : PlaceBrand> {
+    s: ::enroot::own_ref::GhostInitProof<PlaceS>,
+    x: ::enroot::own_ref::GhostInitProof<PlaceX>,
 }
 
-impl<BS : PlaceBrand, BX : PlaceBrand> FooGhostInit<BS, BX> {
+impl<PlaceS : PlaceBrand, PlaceX : PlaceBrand> FooGhostInit<PlaceS, PlaceX> {
     fn indwell<'s, T, Brand : PlaceBrand>(
-        self: FooGhostInit<BS, BX>,
-        out_ref: OutRef<'s, T, HList![Brand, BS, BX]>,
-    ) -> OwnRef<'s, T, Brand> {
+        self: FooGhostInit<PlaceS, PlaceX>,
+        out_ref: OutRef<'s, T, HList![Brand, PlaceS, PlaceX]>,
+    ) -> OwnRef<'s, T, Brand>
+    {
         unsafe {
             OwnRef::from_raw_branded_unchecked(
                 OutRef::into_raw(out_ref)
@@ -99,16 +90,17 @@ impl<BS : PlaceBrand, BX : PlaceBrand> FooGhostInit<BS, BX> {
     }
 }
 
-impl<Brand : PlaceBrand, BS : PlaceBrand, BX : PlaceBrand>
-    ::enroot::out_ref::Project<HList![Brand, BS, BX]>
+impl<Brand : PlaceBrand, PlaceS : PlaceBrand, PlaceX : PlaceBrand>
+    ::enroot::out_ref::Project<HList![Brand, PlaceS, PlaceX]>
 for
     Foo
 {
-    type Projection<'s> = FooOutRefs<'s, BS, BX>;
+    type Projection<'s> = FooOutRefs<'s, PlaceS, PlaceX>;
 
     fn project_impl<'s>(
-        out_ref: OutRef<'s, Foo, HList![Brand, BS, BX]>
-    ) -> Self::Projection<'s> {
+        out_ref: OutRef<'s, Foo, HList![Brand, PlaceS, PlaceX]>
+    ) -> Self::Projection<'s>
+    {
         let raw = out_ref.into_raw();
         FooOutRefs {
             s: unsafe {
@@ -123,19 +115,4 @@ for
             },
         }
     }
-
-    // type HeadBrand = Brand<'brand, Diagnostics>;
-
-    // type GhostInits =
-
-    // fn indwell(
-    //     _: Self::GhostInits,
-    //     enroot::out_ref: OutRef<'s, Self, HList![
-    //         Brand<'brand, Diagnostics>,
-    //         Brand<'brand_s, DS>,
-    //         Brand<'brand_x, DX>,
-    //     ]>,
-    // ) -> OwnRef<'s, Self, Self::HeadBrand> {
-    //     todo!()
-    // }
 }
