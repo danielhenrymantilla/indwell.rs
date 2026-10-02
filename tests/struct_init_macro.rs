@@ -1,16 +1,23 @@
 #![allow(unused)]
-#![warn(unused_must_use)]
+#![warn(unused_mut, unused_must_use)]
 
 use ::enroot::prelude::*;
 
 fn demo_init<'r, FooPlace : IsBrandedPlace>(
-    out_foo: OutRef<'r, Foo<String>, FooPlace>
-) -> OwnRef<'r, Foo<String>, FooPlace>
+    out_foo: OutRef<'r, Foo<Bar<String>>, FooPlace>
+) -> OwnRef<'r, Foo<Bar<String>>, FooPlace>
 {
     let mut out_foo = Foo::attach_field_places(out_foo);
 
     let out_fields = out_foo.project();
-    let s = out_fields.s.write("heh".into());
+    let s = {
+        let mut s = Bar::attach_field_places(out_fields.s);
+        let out_s = s.project();
+        BarOwnRefs(
+            out_s.0.write("heh".into()),
+            out_s.1.write(27),
+        ).into_ghost_init().indwell(s)
+    };
     let x = out_fields.x.write(42);
     let owned_fields = FooOwnRefs { s, x };
 
@@ -31,3 +38,6 @@ where
     s: S,
     x: i32,
 }
+
+#[derive(OutRefProject)]
+struct Bar<S>(S, i32);
