@@ -1,8 +1,6 @@
-#![allow(unused)]
-#![warn(unused_mut, unused_must_use)]
-
 use ::enroot::prelude::*;
 
+pub
 fn demo_init<'r, FooPlace : IsBrandedPlace>(
     out_foo: OutRef<'r, Foo<Bar<String>>, FooPlace>
 ) -> OwnRef<'r, Foo<Bar<String>>, FooPlace>
@@ -24,13 +22,15 @@ fn demo_init<'r, FooPlace : IsBrandedPlace>(
     owned_fields.into_ghost_init().indwell(out_foo)
 }
 
+pub
 fn demo_init2() {
     branded_uninit!(let x);
     let mut b = Box::new(x);
-    let b = b.as_out_ref().write(42_i32).into_ghost_init().indwell(b);
+    let _b: Box<i32> = b.as_out_ref().write(42_i32).into_ghost_init().indwell(b);
 }
 
 #[derive(OutRefProject)]
+pub
 struct Foo<S : Send>
 where
     S : Sync,
@@ -40,4 +40,5 @@ where
 }
 
 #[derive(OutRefProject)]
+pub
 struct Bar<S>(S, i32);

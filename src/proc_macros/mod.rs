@@ -56,18 +56,18 @@ fn __(input: TokenStream) -> TokenStream {
 fn derive_out_ref(input: TokenStream2) -> Result<TokenStream2> {
     let input: &ItemStruct = &parse2(input)?;
 
-    let helpers = &Context::new(input);
+    let context = &Context::new(input);
 
-    let brands_appender = brands_appender(input, helpers);
+    let brands_appender = brands_appender(input, context);
 
-    let project_impl = project_impl(input, helpers);
+    let project_impl = project_impl(input, context);
 
-    let out_refs_struct = projection_struct(input, helpers, "OutRef");
-    let own_refs_struct = projection_struct(input, helpers, "OwnRef");
+    let out_refs_struct = projection_struct(input, context, "OutRef");
+    let own_refs_struct = projection_struct(input, context, "OwnRef");
 
-    let into_ghost_init_with_def = into_ghost_init_with_def(input, helpers);
+    let into_ghost_init_with_def = into_ghost_init_with_def(input, context);
 
-    let indwell = indwell(input, helpers);
+    let indwell = indwell(input, context);
 
     Ok(quote!(
         #[allow(warnings, clippy::all)]
@@ -90,9 +90,13 @@ fn derive_out_ref(input: TokenStream2) -> Result<TokenStream2> {
 }
 
 struct Context {
+    /// `'__s`
     ref_lt: Lifetime,
+    /// `__Place_s, __Place_x, …`
     place_params: Vec<Ident>,
+    /// `__Place_s: #IsBrandedPlace, __Place_x : #IsBrandedPlace, …`
     intro_place_params: Vec<GenericParam>,
+    // The following are self-explanatory idents derived from the type name.
     StructOutRefs: Ident,
     StructOwnRefs: Ident,
     StructGhostInit: Ident,

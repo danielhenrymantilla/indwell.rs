@@ -1,4 +1,4 @@
-use crate::prelude::*;
+use crate::*;
 
 #[macro_export]
 /// <!-- rust-analyzer delimiter nudge

@@ -6,14 +6,14 @@ pub(crate) mod let_quote;
 pub(crate) use mb_file_expanded::mb_file_expanded;
 mod mb_file_expanded;
 
-macro_rules! __quote {(
+macro_rules! quote_ {(
     $($input:tt)*
 ) => (
     ::quote::quote_spanned!(::proc_macro2::Span::mixed_site()=>
         $($input)*
     )
 )}
-pub(crate) use __quote as quote;
+pub(crate) use quote_ as quote;
 
 macro_rules! parse_quote {(
     $($input:tt)*

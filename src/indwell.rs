@@ -1,15 +1,24 @@
+use crate::*;
+
 use crate::utils::diagnostics::{self, Is};
 
-use super::*;
-
 pub
-struct GhostInitProof<B : IsBrandedPlace>(
-    pub(crate) PD<fn() -> B>,
+struct GhostInitProof<BrandedPlace : IsBrandedPlace>(
+    PD<fn() -> BrandedPlace>,
 );
 
 impl<BrandedPlace : IsBrandedPlace> GhostInitProof<BrandedPlace> {
+    #[doc(alias = "new")]
     pub
-    fn indwell<'r, BrandedPlace_ : IsBrandedPlace, Husk : InitProvable<BrandedPlace_>>(
+    unsafe
+    fn assume_branded_place_init() -> Self {
+        Self(PD)
+    }
+}
+
+impl<BrandedPlace : IsBrandedPlace> GhostInitProof<BrandedPlace> {
+    pub
+    fn indwell<'r, BrandedPlace_ : IsBrandedPlace, Husk : UninitPlace<BrandedPlace_>>(
         self,
         r: Husk,
     ) -> Husk::OwnedInit
@@ -21,12 +30,12 @@ impl<BrandedPlace : IsBrandedPlace> GhostInitProof<BrandedPlace> {
         // about `ActualPlace ≠ BadPlace`, which is exactly the desired diagnostics).
         BrandedPlace_ : diagnostics::Is<EqualTo = BrandedPlace>,
     {
-        fn indwell_helper<'r, BrandedPlace_ : IsBrandedPlace, Husk : InitProvable<BrandedPlace_>>(
+        fn indwell_helper<'r, BrandedPlace_ : IsBrandedPlace, Husk : UninitPlace<BrandedPlace_>>(
             _: GhostInitProof<<BrandedPlace_ as Is>::EqualTo>,
             it: Husk,
         ) -> Husk::OwnedInit
         {
-            InitProvable::proven_init(GhostInitProof(PD), it)
+            UninitPlace::proven_init(GhostInitProof(PD), it)
         }
 
         indwell_helper(self, r)
@@ -34,11 +43,22 @@ impl<BrandedPlace : IsBrandedPlace> GhostInitProof<BrandedPlace> {
 }
 
 pub
-trait InitProvable<B : IsBrandedPlace> {
+unsafe
+trait UninitPlace<BrandedPlace : IsBrandedPlace> : Sized {
+    unsafe
+    fn assume_init(self) -> Self::OwnedInit;
+
+    type OwnedInit;
+
     fn proven_init(
-        _: GhostInitProof<B>,
+        _: GhostInitProof<BrandedPlace>,
         this: Self,
     ) -> Self::OwnedInit
-    ;
-    type OwnedInit;
+    {
+        // Implementations are free to override this default impl, but it's a sane default
+        // in exchange of ma(r)king the enscoping trait `unsafe`.
+        unsafe {
+            Self::assume_init(this)
+        }
+    }
 }

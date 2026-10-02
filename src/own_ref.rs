@@ -1,4 +1,4 @@
-use super::*;
+use crate::*;
 
 #[repr(transparent)]
 pub
@@ -16,7 +16,7 @@ impl<'r, T : ?Sized, B : MaybeBrandedPlace> Drop for OwnRef<'r, T, B> {
 
 impl<'r, T : ?Sized, B : MaybeBrandedPlace> OwnRef<'r, T, B> {
     pub
-    fn deref_move(self: OwnRef<'r, T, B>) -> (T, &'r mut MaybeDropped<T>)
+    fn deref_move(self: OwnRef<'r, T, B>) -> (T, &'r mut maybe_dropped::MaybeDropped<T>)
     where
         T : Sized,
     {
@@ -50,7 +50,9 @@ impl<'r, T : ?Sized, BrandedPlace : IsBrandedPlace> OwnRef<'r, T, BrandedPlace> 
     #[must_use = "this is leaking memory unless you call `.indwell()`"]
     pub
     fn into_ghost_init(self: OwnRef<'r, T, BrandedPlace>) -> indwell::GhostInitProof<BrandedPlace> {
-        indwell::GhostInitProof(PD)
+        unsafe {
+            indwell::GhostInitProof::assume_branded_place_init()
+        }
     }
 
     pub

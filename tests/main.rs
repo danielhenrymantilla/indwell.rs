@@ -1,4 +1,7 @@
-use ::enroot::prelude::*;
+use ::enroot::{
+    prelude::*,
+    brand::BrandedPlace,
+};
 
 #[test]
 fn indwell() {

@@ -1,9 +1,10 @@
 use super::*;
 
-pub(crate) fn mb_file_expanded(output: TokenStream2) -> TokenStream2 {
+pub(crate)
+fn mb_file_expanded(output: TokenStream2) -> TokenStream2 {
     let mut debug_macros_dir = match ::std::env::var_os("DEBUG_MACROS_LOCATION") {
-        | Some(it) => ::std::path::PathBuf::from(it),
-        | None => return output,
+        Some(it) => ::std::path::PathBuf::from(it),
+        None => return output,
     };
     let hopefully_unique = {
         // ::rand::random() at home:

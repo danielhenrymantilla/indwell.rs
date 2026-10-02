@@ -1,25 +1,24 @@
-use ::core::{
-    marker::PhantomData as PD,
-    mem::{
-        self,
-        ManuallyDrop as MD,
-        MaybeUninit as MU,
-    },
-    ptr,
-};
-use ::proc_macros;
+// private prelude:
+use {
+    crate::{
+        // extends public one.
+        prelude::*,
 
-use prelude::*;
+        brand::NoBrandedPlace,
+    },
+    ::core::{
+        marker::PhantomData as PD,
+        mem::{
+            self,
+            ManuallyDrop as MD,
+            MaybeUninit as MU,
+        },
+        ptr,
+    },
+};
+
 pub
-mod prelude {
-    pub use crate::{
-        brand::{BrandedPlace, IsBrandedPlace, MaybeBrandedPlace, NoBrandedPlace, new_branded_place},
-        hlist::HList,
-        maybe_dropped::MaybeDropped,
-        own_ref::OwnRef,
-        out_ref::{BrandedUninit, OutRef, OutRefProject, branded_uninit},
-    };
-}
+mod prelude;
 
 pub
 mod brand;
@@ -38,5 +37,7 @@ mod own_ref;
 
 pub
 mod out_ref;
+
+use ::proc_macros;
 
 mod utils;

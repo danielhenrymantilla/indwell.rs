@@ -1,17 +1,17 @@
-use super::*;
+use crate::*;
 
 #[repr(transparent)]
 pub
 struct OutRef<'r, T : ?Sized, P : MaybeBrandedPlace = NoBrandedPlace> {
     raw: ptr::NonNull<T>,
     _phantom: PD<fn(fn(&'r (), &mut T)) -> P>,
-    _owns_t : PD<T>,
+    _owns_t: PD<T>,
 }
 
 impl<'r, T : ?Sized, P : MaybeBrandedPlace> OutRef<'r, T, P> {
     pub
     fn into_raw(self) -> ptr::NonNull<T> {
-        MD::new(self).raw
+        self.raw
     }
 }
 
@@ -39,7 +39,7 @@ impl<T : ?Sized> AsOutRef<T> for MD<T> {
 impl<T : Sized> AsOutRef<T> for MU<T> {
     fn as_out_ref(self: &mut MU<T>) -> OutRef<'_, T> {
         unsafe {
-            mem::transmute(self)
+            OutRef::from_raw(ptr::NonNull::cast(self.into()))
         }
     }
 }
@@ -105,18 +105,19 @@ impl<'r, T : ?Sized> OutRef<'r, T, NoBrandedPlace> {
     }
 }
 
+unsafe
 impl<'r, T : Sized, BrandedPlace : IsBrandedPlace>
-    indwell::InitProvable<BrandedPlace>
+    indwell::UninitPlace<BrandedPlace>
 for
     OutRef<'r, T, BrandedPlace>
 {
-    fn proven_init(
-        _: indwell::GhostInitProof<BrandedPlace>,
-        out_ref: OutRef<'r, T, BrandedPlace>,
+    unsafe
+    fn assume_init(
+        self: OutRef<'r, T, BrandedPlace>,
     ) -> OwnRef<'r, T, BrandedPlace>
     {
         unsafe {
-            OwnRef::from_raw_branded_unchecked(out_ref.into_raw())
+            OwnRef::from_raw_branded_unchecked(self.into_raw())
         }
     }
     type OwnedInit = OwnRef<'r, T, BrandedPlace>;
@@ -130,15 +131,15 @@ struct BrandedUninit<T, BrandedPlace : IsBrandedPlace> {
 
 pub
 fn branded_uninit<T, BrandedPlace : IsBrandedPlace>(
-    witnessed: BrandedPlace,
+    branded_place: BrandedPlace,
 ) -> BrandedUninit<T, BrandedPlace>
 {
-    BrandedUninit::uninit(witnessed)
+    BrandedUninit::new(branded_place)
 }
 
 impl<T, BrandedPlace : IsBrandedPlace> BrandedUninit<T, BrandedPlace> {
     pub
-    fn uninit(_witnessed: BrandedPlace) -> BrandedUninit<T, BrandedPlace> {
+    fn new(_branded_place: BrandedPlace) -> BrandedUninit<T, BrandedPlace> {
         Self { value: MU::uninit(), _brand: PD }
     }
 
@@ -150,35 +151,37 @@ impl<T, BrandedPlace : IsBrandedPlace> BrandedUninit<T, BrandedPlace> {
     }
 }
 
+unsafe
 impl<'r, T : Sized, BrandedPlace : IsBrandedPlace>
-    indwell::InitProvable<BrandedPlace>
+    indwell::UninitPlace<BrandedPlace>
 for
     &'r mut BrandedUninit<T, BrandedPlace>
 {
-    fn proven_init(
-        _: indwell::GhostInitProof<BrandedPlace>,
-        place: &'r mut BrandedUninit<T, BrandedPlace>,
+    unsafe
+    fn assume_init(
+        self: &'r mut BrandedUninit<T, BrandedPlace>,
     ) -> OwnRef<'r, T, BrandedPlace>
     {
         unsafe {
-            OwnRef::from_raw_branded_unchecked(ptr::NonNull::from(&mut place.value).cast())
+            OwnRef::from_raw_branded_unchecked(ptr::NonNull::from(&mut self.value).cast())
         }
     }
     type OwnedInit = OwnRef<'r, T, BrandedPlace>;
 }
 
+unsafe
 impl<T : Sized, BrandedPlace : IsBrandedPlace>
-    indwell::InitProvable<BrandedPlace>
+    indwell::UninitPlace<BrandedPlace>
 for
     Box<BrandedUninit<T, BrandedPlace>>
 {
-    fn proven_init(
-        _: indwell::GhostInitProof<BrandedPlace>,
-        husk: Box<BrandedUninit<T, BrandedPlace>>,
+    unsafe
+    fn assume_init(
+        self: Box<BrandedUninit<T, BrandedPlace>>,
     ) -> Box<T>
     {
         unsafe {
-            Box::from_raw(Box::into_raw(husk).cast())
+            Box::from_raw(Box::into_raw(self).cast())
         }
     }
     type OwnedInit = Box<T>;
@@ -194,22 +197,33 @@ macro_rules! ඞbranded_uninit {(
         let mut $binding = $crate::out_ref::branded_uninit $(::<$T, _>)? ($binding);
     )+
 )}
-/// Foo
 #[doc(inline)]
 pub use ඞbranded_uninit as branded_uninit;
 
-impl<'r, T : ?Sized, Brands : IsBrandedPlace>
-    OutRef<'r, T, Brands>
+impl<'r, T : ?Sized, TPlace : IsBrandedPlace, FieldPlaces: IsBrandedPlace>
+    OutRef<'r, T, HList![TPlace, ..FieldPlaces]>
 {
     pub
-    fn project<'s>(self: &'s mut OutRef<'r, T, Brands>)
-      -> <T as OutRefProject<Brands>>::Projection<'s>
+    fn project<'s>(self: &'s mut OutRef<'r, T, HList![TPlace, ..FieldPlaces]>)
+      -> <T as OutRefProject<HList![TPlace, ..FieldPlaces]>>::Projection<'s>
     where
-        T : OutRefProject<Brands>,
+        T : OutRefProject<HList![TPlace, ..FieldPlaces]>,
     {
         OutRefProject::project_impl(self.r())
     }
 }
+
+pub use crate::proc_macros::OutRefProject;
+
+pub
+trait OutRefProject<BrandedPlaces : IsBrandedPlace> {
+    type Projection<'s>;
+    fn project_impl<'s>(
+        out_ref: OutRef<'s, Self, BrandedPlaces>,
+    ) -> Self::Projection<'s>
+    ;
+}
+
 impl<'r, T : ?Sized, TPlace : IsBrandedPlace, FieldPlaces: IsBrandedPlace>
     OutRef<'r, T, HList![TPlace, ..FieldPlaces]>
 {
@@ -222,21 +236,4 @@ impl<'r, T : ?Sized, TPlace : IsBrandedPlace, FieldPlaces: IsBrandedPlace>
             OutRef::from_raw_branded_unchecked(self.into_raw())
         }
     }
-}
-
-pub use crate::proc_macros::OutRefProject;
-
-pub
-trait OutRefProject<Brands : IsBrandedPlace> {
-    type Projection<'s>;
-    fn project_impl<'s>(
-        out_ref: OutRef<'s, Self, Brands>,
-    ) -> Self::Projection<'s>;
-
-    // type HeadBrand;
-    // type GhostInits;
-    // fn indwell(
-    //     _: Self::GhostInits,
-    //     out_ref: OutRef<'s, Self, Brands>,
-    // ) -> OwnRef<'s, Self, Self::HeadBrand>;
 }

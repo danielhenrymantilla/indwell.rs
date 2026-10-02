@@ -1,9 +1,10 @@
-#![allow(unused)]
-#![warn(unused_must_use)]
-
 use ::core::ptr;
-use ::enroot::prelude::*;
+use ::enroot::{
+    prelude::*,
+    brand::BrandedPlace,
+};
 
+pub
 fn demo_init<'r, FooPlace : IsBrandedPlace>(
     out_foo: OutRef<'r, Foo, FooPlace>
 ) -> OwnRef<'r, Foo, FooPlace>
@@ -18,6 +19,7 @@ fn demo_init<'r, FooPlace : IsBrandedPlace>(
     owned_fields.into_ghost_init().indwell(out_foo)
 }
 
+pub
 struct Foo {
     s: String,
     x: i32,
@@ -50,11 +52,13 @@ const _: () = {
     }
 };
 
+pub
 struct FooOutRefs<'s, PlaceS : IsBrandedPlace, PlaceX : IsBrandedPlace> {
     s: OutRef<'s, String, PlaceS>,
     x: OutRef<'s, i32, PlaceX>,
 }
 
+pub
 struct FooOwnRefs<'s, PlaceS : IsBrandedPlace, PlaceX : IsBrandedPlace> {
     s: OwnRef<'s, String, PlaceS>,
     x: OwnRef<'s, i32, PlaceX>,
@@ -62,6 +66,7 @@ struct FooOwnRefs<'s, PlaceS : IsBrandedPlace, PlaceX : IsBrandedPlace> {
 
 impl<'s, PlaceS : IsBrandedPlace, PlaceX : IsBrandedPlace> FooOwnRefs<'s, PlaceS, PlaceX> {
     #[must_use = "this is leaking memory unless you call `.indwell()`"]
+    pub
     fn into_ghost_init(self) -> FooGhostInit<PlaceS, PlaceX> {
         let Self { s, x } = self;
         FooGhostInit {
@@ -71,6 +76,8 @@ impl<'s, PlaceS : IsBrandedPlace, PlaceX : IsBrandedPlace> FooOwnRefs<'s, PlaceS
     }
 }
 
+#[allow(unused)]
+pub
 struct FooGhostInit<PlaceS : IsBrandedPlace, PlaceX : IsBrandedPlace> {
     s: ::enroot::indwell::GhostInitProof<PlaceS>,
     x: ::enroot::indwell::GhostInitProof<PlaceX>,
