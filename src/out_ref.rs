@@ -174,6 +174,23 @@ for
     type OwnedInit = OwnRef<'r, T, BrandedPlace>;
 }
 
+impl<T : Sized, BrandedPlace : IsBrandedPlace>
+    InitProvable<BrandedPlace>
+for
+    Box<BrandedUninit<T, BrandedPlace>>
+{
+    fn proven_init(
+        _: GhostInitProof<BrandedPlace>,
+        husk: Box<BrandedUninit<T, BrandedPlace>>,
+    ) -> Box<T>
+    {
+        unsafe {
+            Box::from_raw(Box::into_raw(husk).cast())
+        }
+    }
+    type OwnedInit = Box<T>;
+}
+
 #[doc(hidden)] /** Not part of the public API */ #[macro_export]
 macro_rules! ඞbranded_uninit {(
     let $($binding:ident $(: $T:ty)?),+ $(,)?

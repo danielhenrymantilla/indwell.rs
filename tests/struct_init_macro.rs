@@ -17,6 +17,12 @@ fn demo_init<'r, FooPlace : IsBrandedPlace>(
     owned_fields.into_ghost_init().indwell(out_foo)
 }
 
+fn demo_init2() {
+    branded_uninit!(let x);
+    let mut b = Box::new(x);
+    let b = b.as_out_ref().write(42_i32).into_ghost_init().indwell(b);
+}
+
 #[derive(OutRefProject)]
 struct Foo<S : Send>
 where
