@@ -205,20 +205,7 @@ macro_rules! ඞbranded_uninit {(
 #[doc(inline)]
 pub use ඞbranded_uninit as branded_uninit;
 
-// #[::implied_bounds::implied_bounds]
-// pub
-// trait BrandsFor<Struct> : IsBrandedPlace
-// where
-//     Struct : OutRefProject<Self>,
-// {}
-
-// impl<Brands, Struct> BrandsFor<Struct> for Brands
-// where
-//     Self : IsBrandedPlace,
-//     Struct : OutRefProject<Brands>,
-// {}
-
-impl<'r, 'brand, T : ?Sized, Brands : IsBrandedPlace>
+impl<'r, T : ?Sized, Brands : IsBrandedPlace>
     OutRef<'r, T, Brands>
 {
     pub
