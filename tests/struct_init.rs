@@ -91,7 +91,7 @@ impl<PlaceS : PlaceBrand, PlaceX : PlaceBrand> FooGhostInit<PlaceS, PlaceX> {
 }
 
 impl<Brand : PlaceBrand, PlaceS : PlaceBrand, PlaceX : PlaceBrand>
-    ::enroot::out_ref::Project<HList![Brand, PlaceS, PlaceX]>
+    ::enroot::out_ref::OutRefProject<HList![Brand, PlaceS, PlaceX]>
 for
     Foo
 {

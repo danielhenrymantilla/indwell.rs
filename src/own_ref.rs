@@ -71,31 +71,33 @@ impl<T : ?Sized> Is for T { type EqualTo = T; }
 
 impl<Brand : PlaceBrand> GhostInitProof<Brand> {
     pub
-    fn indwell<'r, T, Brand2 : PlaceBrand>(
+    fn indwell<'r, Brand2 : PlaceBrand, Husk : InitProvable<Brand2>>(
         self,
-        r: impl InitProvable<'r, T, Brand2>
-    ) -> OwnRef<'r, T, Brand>
+        r: Husk,
+    ) -> Husk::OwnedInit
     where
         Brand2 : Is<EqualTo = Brand>,
     {
-        fn cast<'r, T, Brand : PlaceBrand>(
-            it: OwnRef<'r, T, Brand>,
-        ) -> OwnRef<'r, T, <Brand as Is>::EqualTo>
+        fn indwell_helper<'r, Brand2 : PlaceBrand, Husk : InitProvable<Brand2>>(
+            _: GhostInitProof<<Brand2 as Is>::EqualTo>,
+            it: Husk,
+        ) -> Husk::OwnedInit
         {
-            it
+            InitProvable::proven_init(GhostInitProof(PD), it)
         }
 
-        cast(InitProvable::proven_init(GhostInitProof(PD), r))
+        indwell_helper(self, r)
     }
 }
 
 pub
-trait InitProvable<'r, T, B : PlaceBrand> {
+trait InitProvable<B : PlaceBrand> {
     fn proven_init(
         _: GhostInitProof<B>,
         this: Self,
-    ) -> OwnRef<'r, T, B>
+    ) -> Self::OwnedInit
     ;
+    type OwnedInit;
 }
 
 impl<'r, T : ?Sized> OwnRef<'r, T, Unbranded> {

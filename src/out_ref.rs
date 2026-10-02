@@ -113,7 +113,7 @@ impl<'r, T : ?Sized> OutRef<'r, T, Unbranded> {
 }
 
 impl<'r, T : Sized, Place : PlaceBrand>
-    InitProvable<'r, T, Place>
+    InitProvable<Place>
 for
     OutRef<'r, T, Place>
 {
@@ -126,6 +126,7 @@ for
             OwnRef::from_raw_branded_unchecked(out_ref.into_raw())
         }
     }
+    type OwnedInit = OwnRef<'r, T, Place>;
 }
 
 pub
@@ -157,7 +158,7 @@ impl<T, Place : PlaceBrand> BrandedPlace<T, Place> {
 }
 
 impl<'r, T : Sized, Place : PlaceBrand>
-    InitProvable<'r, T, Place>
+    InitProvable<Place>
 for
     &'r mut BrandedPlace<T, Place>
 {
@@ -170,6 +171,7 @@ for
             OwnRef::from_raw_branded_unchecked(ptr::NonNull::from(&mut place.value).cast())
         }
     }
+    type OwnedInit = OwnRef<'r, T, Place>;
 }
 
 #[doc(hidden)] /** Not part of the public API */ #[macro_export]
