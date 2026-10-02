@@ -1,3 +1,5 @@
+use crate::utils::diagnostics::{self, Is};
+
 use super::*;
 
 #[repr(transparent)]
@@ -30,7 +32,7 @@ impl<'r, T : ?Sized, B : MaybeBrandedPlace> OwnRef<'r, T, B> {
     }
 
     pub
-    fn into_raw(self) -> ptr::NonNull<T> {
+    fn into_raw(self: OwnRef<'r, T, B>) -> ptr::NonNull<T> {
         MD::new(self).raw
     }
 
@@ -41,8 +43,8 @@ impl<'r, T : ?Sized, B : MaybeBrandedPlace> OwnRef<'r, T, B> {
     }
 
     pub
-    fn leak(self) -> &'r mut MD<T> {
-        unsafe { mem::transmute(self) }
+    fn leak(this: Self) -> &'r mut MD<T> {
+        unsafe { mem::transmute(this) }
     }
 }
 
@@ -63,23 +65,25 @@ impl<'r, T : ?Sized, BrandedPlace : IsBrandedPlace> OwnRef<'r, T, BrandedPlace> 
 
 pub
 struct GhostInitProof<B : IsBrandedPlace>(
-    PD<B>,
+    PD<fn() -> B>,
 );
-
-pub trait Is { type EqualTo : ?Sized; }
-impl<T : ?Sized> Is for T { type EqualTo = T; }
 
 impl<BrandedPlace : IsBrandedPlace> GhostInitProof<BrandedPlace> {
     pub
-    fn indwell<'r, Brand2 : IsBrandedPlace, Husk : InitProvable<Brand2>>(
+    fn indwell<'r, BrandedPlace_ : IsBrandedPlace, Husk : InitProvable<BrandedPlace_>>(
         self,
         r: Husk,
     ) -> Husk::OwnedInit
     where
-        Brand2 : Is<EqualTo = BrandedPlace>,
+        // this may seem weird, but it improves the diagnostics upon `BrandedPlace`
+        // mismatch considerably (indeed, it would default to saying that
+        // `InitProvable<ActualPlace>` is not implemented for `Thing<BadPlace>`, whereas
+        // this way it does see the `InitProvable<_>` impl, and instead "just" complains
+        // about `ActualPlace ≠ BadPlace`, which is exactly the desired diagnostics).
+        BrandedPlace_ : diagnostics::Is<EqualTo = BrandedPlace>,
     {
-        fn indwell_helper<'r, Brand2 : IsBrandedPlace, Husk : InitProvable<Brand2>>(
-            _: GhostInitProof<<Brand2 as Is>::EqualTo>,
+        fn indwell_helper<'r, BrandedPlace_ : IsBrandedPlace, Husk : InitProvable<BrandedPlace_>>(
+            _: GhostInitProof<<BrandedPlace_ as Is>::EqualTo>,
             it: Husk,
         ) -> Husk::OwnedInit
         {

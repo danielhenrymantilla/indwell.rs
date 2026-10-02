@@ -15,11 +15,6 @@ impl<'r, T : ?Sized, P : MaybeBrandedPlace> OutRef<'r, T, P> {
     fn into_raw(self) -> ptr::NonNull<T> {
         MD::new(self).raw
     }
-
-    pub
-    fn leak(self) -> &'r mut MD<T> {
-        unsafe { mem::transmute(self) }
-    }
 }
 
 pub
@@ -215,6 +210,19 @@ impl<'r, T : ?Sized, Brands : IsBrandedPlace>
         T : OutRefProject<Brands>,
     {
         OutRefProject::project_impl(self.r())
+    }
+}
+impl<'r, T : ?Sized, TPlace : IsBrandedPlace, FieldPlaces: IsBrandedPlace>
+    OutRef<'r, T, HList![TPlace, ..FieldPlaces]>
+{
+    pub
+    fn discard_field_places(
+        self: OutRef<'r, T, HList![TPlace, ..FieldPlaces]>,
+    ) -> OutRef<'r, T, TPlace>
+    {
+        unsafe {
+            OutRef::from_raw_branded_unchecked(self.into_raw())
+        }
     }
 }
 
