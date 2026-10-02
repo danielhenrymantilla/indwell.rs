@@ -28,6 +28,9 @@ pub
 mod hlist;
 
 pub
+mod indwell;
+
+pub
 mod maybe_dropped;
 
 pub

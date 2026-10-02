@@ -72,8 +72,8 @@ impl<'s, PlaceS : IsBrandedPlace, PlaceX : IsBrandedPlace> FooOwnRefs<'s, PlaceS
 }
 
 struct FooGhostInit<PlaceS : IsBrandedPlace, PlaceX : IsBrandedPlace> {
-    s: ::enroot::own_ref::GhostInitProof<PlaceS>,
-    x: ::enroot::own_ref::GhostInitProof<PlaceX>,
+    s: ::enroot::indwell::GhostInitProof<PlaceS>,
+    x: ::enroot::indwell::GhostInitProof<PlaceX>,
 }
 
 impl<PlaceS : IsBrandedPlace, PlaceX : IsBrandedPlace> FooGhostInit<PlaceS, PlaceX> {

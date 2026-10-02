@@ -1,5 +1,3 @@
-use crate::own_ref::{GhostInitProof, InitProvable};
-
 use super::*;
 
 #[repr(transparent)]
@@ -108,12 +106,12 @@ impl<'r, T : ?Sized> OutRef<'r, T, NoBrandedPlace> {
 }
 
 impl<'r, T : Sized, BrandedPlace : IsBrandedPlace>
-    InitProvable<BrandedPlace>
+    indwell::InitProvable<BrandedPlace>
 for
     OutRef<'r, T, BrandedPlace>
 {
     fn proven_init(
-        _: GhostInitProof<BrandedPlace>,
+        _: indwell::GhostInitProof<BrandedPlace>,
         out_ref: OutRef<'r, T, BrandedPlace>,
     ) -> OwnRef<'r, T, BrandedPlace>
     {
@@ -153,12 +151,12 @@ impl<T, BrandedPlace : IsBrandedPlace> BrandedUninit<T, BrandedPlace> {
 }
 
 impl<'r, T : Sized, BrandedPlace : IsBrandedPlace>
-    InitProvable<BrandedPlace>
+    indwell::InitProvable<BrandedPlace>
 for
     &'r mut BrandedUninit<T, BrandedPlace>
 {
     fn proven_init(
-        _: GhostInitProof<BrandedPlace>,
+        _: indwell::GhostInitProof<BrandedPlace>,
         place: &'r mut BrandedUninit<T, BrandedPlace>,
     ) -> OwnRef<'r, T, BrandedPlace>
     {
@@ -170,12 +168,12 @@ for
 }
 
 impl<T : Sized, BrandedPlace : IsBrandedPlace>
-    InitProvable<BrandedPlace>
+    indwell::InitProvable<BrandedPlace>
 for
     Box<BrandedUninit<T, BrandedPlace>>
 {
     fn proven_init(
-        _: GhostInitProof<BrandedPlace>,
+        _: indwell::GhostInitProof<BrandedPlace>,
         husk: Box<BrandedUninit<T, BrandedPlace>>,
     ) -> Box<T>
     {

@@ -351,7 +351,7 @@ fn into_ghost_init_with_def(
 {
     let_quote!(
         use ::enroot::{
-            own_ref::GhostInitProof,
+            indwell::GhostInitProof,
         };
     );
 
