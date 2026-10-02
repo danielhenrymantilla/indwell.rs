@@ -375,7 +375,7 @@ fn into_ghost_init_with_def(
                 #(
                     #GhostInitProof<#EachPlaceParam>,
                 )*
-            )
+            );
         ),
         // y tho?
         Fields::Unit => quote!(
@@ -392,12 +392,9 @@ fn into_ghost_init_with_def(
             #[must_use = "this is leaking memory unless you call `.indwell()`"]
             // TODO: visibility.
             fn into_ghost_init(self) -> #StructGhostInit<#(#EachPlaceParam),*> {
-                let Self {
-                    #(#each_member, )*
-                } = self;
                 #StructGhostInit {
                     #(
-                        #each_member: #each_member.into_ghost_init(),
+                        #each_member: self.#each_member.into_ghost_init(),
                     )*
                 }
             }
