@@ -1,9 +1,10 @@
 use crate::prelude::*;
 
 #[macro_export]
+/// <!-- rust-analyzer delimiter nudge
 /// ```rust ,ignore
 /// HList![];
-/// ```
+/// ``` -->
 macro_rules! ඞHList {
     [] => { () };
 
