@@ -4,11 +4,11 @@
 use ::core::ptr;
 use ::enroot::prelude::*;
 
-fn demo_init<'r, Brand : PlaceBrand>(
-    out_foo: OutRef<'r, Foo, Brand>
-) -> OwnRef<'r, Foo, Brand>
+fn demo_init<'r, FooPlace : IsBrandedPlace>(
+    out_foo: OutRef<'r, Foo, FooPlace>
+) -> OwnRef<'r, Foo, FooPlace>
 {
-    let mut out_foo = Foo::append_field_init_brands(out_foo);
+    let mut out_foo = Foo::attach_field_places(out_foo);
 
     let out_fields = out_foo.project();
     let s = out_fields.s.write("heh".into());
@@ -29,19 +29,19 @@ const _: () = {
     enum x {}
 
     impl Foo {
-        fn append_field_init_brands<'r, FooPlace : PlaceBrand>(
+        fn attach_field_places<'r, FooPlace : IsBrandedPlace>(
             out_ref: OutRef<'r, Foo, FooPlace>
         ) -> OutRef<'r, Foo, HList![
             FooPlace,
-            Brand<'static, impl use<FooPlace> + ::enroot::brand::Place<x>>,
-            Brand<'static, impl use<FooPlace> + ::enroot::brand::Place<s>>,
+            BrandedPlace<'static, impl use<FooPlace> + ::enroot::brand::Place<x>>,
+            BrandedPlace<'static, impl use<FooPlace> + ::enroot::brand::Place<s>>,
         ]>
         {
             unsafe {
                 OutRef::<_, HList![
                     FooPlace,
-                    Brand<'_, ()>,
-                    Brand<'_, ()>,
+                    BrandedPlace<'_, ()>,
+                    BrandedPlace<'_, ()>,
                 ]>::from_raw_branded_unchecked(
                     OutRef::into_raw(out_ref)
                 )
@@ -50,17 +50,17 @@ const _: () = {
     }
 };
 
-struct FooOutRefs<'s, PlaceS : PlaceBrand, PlaceX : PlaceBrand> {
+struct FooOutRefs<'s, PlaceS : IsBrandedPlace, PlaceX : IsBrandedPlace> {
     s: OutRef<'s, String, PlaceS>,
     x: OutRef<'s, i32, PlaceX>,
 }
 
-struct FooOwnRefs<'s, PlaceS : PlaceBrand, PlaceX : PlaceBrand> {
+struct FooOwnRefs<'s, PlaceS : IsBrandedPlace, PlaceX : IsBrandedPlace> {
     s: OwnRef<'s, String, PlaceS>,
     x: OwnRef<'s, i32, PlaceX>,
 }
 
-impl<'s, PlaceS : PlaceBrand, PlaceX : PlaceBrand> FooOwnRefs<'s, PlaceS, PlaceX> {
+impl<'s, PlaceS : IsBrandedPlace, PlaceX : IsBrandedPlace> FooOwnRefs<'s, PlaceS, PlaceX> {
     #[must_use = "this is leaking memory unless you call `.indwell()`"]
     fn into_ghost_init(self) -> FooGhostInit<PlaceS, PlaceX> {
         let Self { s, x } = self;
@@ -71,16 +71,16 @@ impl<'s, PlaceS : PlaceBrand, PlaceX : PlaceBrand> FooOwnRefs<'s, PlaceS, PlaceX
     }
 }
 
-struct FooGhostInit<PlaceS : PlaceBrand, PlaceX : PlaceBrand> {
+struct FooGhostInit<PlaceS : IsBrandedPlace, PlaceX : IsBrandedPlace> {
     s: ::enroot::own_ref::GhostInitProof<PlaceS>,
     x: ::enroot::own_ref::GhostInitProof<PlaceX>,
 }
 
-impl<PlaceS : PlaceBrand, PlaceX : PlaceBrand> FooGhostInit<PlaceS, PlaceX> {
-    fn indwell<'s, T, Brand : PlaceBrand>(
+impl<PlaceS : IsBrandedPlace, PlaceX : IsBrandedPlace> FooGhostInit<PlaceS, PlaceX> {
+    fn indwell<'s, T, BrandedPlace : IsBrandedPlace>(
         self: FooGhostInit<PlaceS, PlaceX>,
-        out_ref: OutRef<'s, T, HList![Brand, PlaceS, PlaceX]>,
-    ) -> OwnRef<'s, T, Brand>
+        out_ref: OutRef<'s, T, HList![BrandedPlace, PlaceS, PlaceX]>,
+    ) -> OwnRef<'s, T, BrandedPlace>
     {
         unsafe {
             OwnRef::from_raw_branded_unchecked(
@@ -90,7 +90,7 @@ impl<PlaceS : PlaceBrand, PlaceX : PlaceBrand> FooGhostInit<PlaceS, PlaceX> {
     }
 }
 
-impl<Brand : PlaceBrand, PlaceS : PlaceBrand, PlaceX : PlaceBrand>
+impl<Brand : IsBrandedPlace, PlaceS : IsBrandedPlace, PlaceX : IsBrandedPlace>
     ::enroot::out_ref::OutRefProject<HList![Brand, PlaceS, PlaceX]>
 for
     Foo

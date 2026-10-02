@@ -3,11 +3,11 @@
 
 use ::enroot::prelude::*;
 
-fn demo_init<'r, Brand : PlaceBrand>(
-    out_foo: OutRef<'r, Foo<String>, Brand>
-) -> OwnRef<'r, Foo<String>, Brand>
+fn demo_init<'r, FooPlace : IsBrandedPlace>(
+    out_foo: OutRef<'r, Foo<String>, FooPlace>
+) -> OwnRef<'r, Foo<String>, FooPlace>
 {
-    let mut out_foo = Foo::append_field_init_brands(out_foo);
+    let mut out_foo = Foo::attach_field_places(out_foo);
 
     let out_fields = out_foo.project();
     let s = out_fields.s.write("heh".into());

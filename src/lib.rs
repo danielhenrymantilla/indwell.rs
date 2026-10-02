@@ -13,11 +13,11 @@ use prelude::*;
 pub
 mod prelude {
     pub use crate::{
-        brand::{Brand, PlaceBrand, MaybeBrand, Unbranded, new_brands},
+        brand::{BrandedPlace, IsBrandedPlace, MaybeBrandedPlace, NoBrandedPlace, new_branded_place},
         hlist::HList,
         maybe_dropped::MaybeDropped,
         own_ref::OwnRef,
-        out_ref::{BrandedPlace, OutRef, OutRefProject, branded_places},
+        out_ref::{BrandedUninit, OutRef, OutRefProject, branded_uninit},
     };
 }
 

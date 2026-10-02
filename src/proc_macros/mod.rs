@@ -102,7 +102,7 @@ impl Context {
     fn new(input: &ItemStruct) -> Self {
         let_quote!(
             use ::enroot::{
-                brand::PlaceBrand,
+                brand::IsBrandedPlace,
             };
         );
 
@@ -121,7 +121,7 @@ impl Context {
         let intro_place_params =
             place_params.iter().map(|PlaceParam @ _| -> GenericParam {
                 parse_quote!(
-                    #PlaceParam : #PlaceBrand
+                    #PlaceParam : #IsBrandedPlace
                 )
             })
             .collect::<Vec<_>>()
@@ -153,7 +153,7 @@ fn projection_struct(
 {
     let_quote!(
         use ::enroot::{
-            brand::PlaceBrand,
+            brand::IsBrandedPlace,
             own_ref::OwnRef,
             out_ref::OutRef,
         };
@@ -197,7 +197,7 @@ fn project_impl(
 {
     let_quote!(
         use ::enroot::{
-            brand::PlaceBrand,
+            brand::IsBrandedPlace,
             hlist::HList,
             out_ref::{OutRef, OutRefProject},
         };
@@ -212,7 +212,7 @@ fn project_impl(
 
     let mut generics = input.generics.clone();
     generics.params.push(parse_quote!(
-        #BrandParam : #PlaceBrand
+        #BrandParam : #IsBrandedPlace
     ));
     generics.params.extend(intro_place_params.clone());
 
@@ -281,7 +281,7 @@ fn brands_appender(
 
     let_quote!(
         use ::enroot::{
-            brand::{Brand, PlaceBrand, Place},
+            brand::{BrandedPlace, IsBrandedPlace, Place},
             hlist::HList,
             out_ref::OutRef,
         };
@@ -296,14 +296,14 @@ fn brands_appender(
     ;
 
     let EachFieldSubBrand @ _ = EachFieldNameEnum.iter().map(|field| quote_spanned!(field.span()=>
-        #Brand<
+        #BrandedPlace<
             'static,
             impl use<__SelfPlace #(, #EachGenericTy)*> + #Place<#field>,
         >
     ));
 
     let EachFieldSubBrandConcrete @ _ = (0..input.fields.len()).map(|_| quote!(
-        #Brand<
+        #BrandedPlace<
             '_, // 'static
             (),
         >
@@ -317,7 +317,7 @@ fn brands_appender(
         impl #intro_generics #StructName #fwd_generics
         #mb_where_clause
         {
-            fn append_field_init_brands<#ref_lt, __SelfPlace : #PlaceBrand>(
+            fn attach_field_places<#ref_lt, __SelfPlace : #IsBrandedPlace>(
                 out_ref: #OutRef<#ref_lt, Self, __SelfPlace>
             ) -> #OutRef<#ref_lt, Self, #HList![
                 __SelfPlace, #(
@@ -424,7 +424,7 @@ fn indwell(
 {
     let_quote!(
         use ::enroot::{
-            brand::PlaceBrand,
+            brand::IsBrandedPlace,
             hlist::HList,
             own_ref::OwnRef,
             out_ref::OutRef,
@@ -436,7 +436,7 @@ fn indwell(
         impl<#(#IntroEachPlaceParam),*>
             #StructGhostInit<#(#EachPlaceParam),*>
         {
-            fn indwell<#ref_lt, __T, __SelfPlace : #PlaceBrand>(
+            fn indwell<#ref_lt, __T, __SelfPlace : #IsBrandedPlace>(
                 self: #StructGhostInit<#(#EachPlaceParam),*>,
                 out_ref: #OutRef<#ref_lt, __T, #HList![
                     __SelfPlace #(,

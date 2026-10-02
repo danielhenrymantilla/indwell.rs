@@ -22,26 +22,26 @@ macro_rules! ඞHList {
 #[doc(inline)]
 pub use ඞHList as HList;
 
-impl<Hd : MaybeBrand, Tl : MaybeBrand>
+impl<Hd : MaybeBrandedPlace, Tl : MaybeBrandedPlace>
     crate::brand::ImplMaybeBrand
 for
     HList![Hd, ..Tl]
 {}
 
-impl<Hd : MaybeBrand>
+impl<Hd : MaybeBrandedPlace>
     crate::brand::ImplMaybeBrand
 for
     HList![Hd]
 {}
 
-impl<Hd : PlaceBrand, Tl : PlaceBrand>
-    PlaceBrand
+impl<Hd : IsBrandedPlace, Tl : IsBrandedPlace>
+    IsBrandedPlace
 for
     HList![Hd, ..Tl]
 {}
 
-impl<Hd : PlaceBrand>
-    PlaceBrand
+impl<Hd : IsBrandedPlace>
+    IsBrandedPlace
 for
     HList![Hd]
 {}

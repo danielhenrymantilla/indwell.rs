@@ -2,19 +2,19 @@ use super::*;
 
 #[repr(transparent)]
 pub
-struct OwnRef<'r, T : ?Sized, B : MaybeBrand = Unbranded> {
+struct OwnRef<'r, T : ?Sized, B : MaybeBrandedPlace = NoBrandedPlace> {
     raw: ptr::NonNull<T>,
     _phantom: PD<(B, &'r ())>,
     _owns_t: PD<T>,
 }
 
-impl<'r, T : ?Sized, B : MaybeBrand> Drop for OwnRef<'r, T, B> {
+impl<'r, T : ?Sized, B : MaybeBrandedPlace> Drop for OwnRef<'r, T, B> {
     fn drop(&mut self) {
         unsafe { self.raw.as_ptr().drop_in_place() }
     }
 }
 
-impl<'r, T : ?Sized, B : MaybeBrand> OwnRef<'r, T, B> {
+impl<'r, T : ?Sized, B : MaybeBrandedPlace> OwnRef<'r, T, B> {
     pub
     fn deref_move(self: OwnRef<'r, T, B>) -> (T, &'r mut MaybeDropped<T>)
     where
@@ -46,15 +46,15 @@ impl<'r, T : ?Sized, B : MaybeBrand> OwnRef<'r, T, B> {
     }
 }
 
-impl<'r, T : ?Sized, Brand : PlaceBrand> OwnRef<'r, T, Brand> {
+impl<'r, T : ?Sized, BrandedPlace : IsBrandedPlace> OwnRef<'r, T, BrandedPlace> {
     #[must_use = "this is leaking memory unless you call `.indwell()`"]
     pub
-    fn into_ghost_init(self: OwnRef<'r, T, Brand>) -> GhostInitProof<Brand> {
+    fn into_ghost_init(self: OwnRef<'r, T, BrandedPlace>) -> GhostInitProof<BrandedPlace> {
         GhostInitProof(PD)
     }
 
     pub
-    fn unbrand(self: OwnRef<'r, T, Brand>) -> OwnRef<'r, T> {
+    fn unbrand(self: OwnRef<'r, T, BrandedPlace>) -> OwnRef<'r, T> {
         unsafe {
             OwnRef::from_raw(self.into_raw())
         }
@@ -62,23 +62,23 @@ impl<'r, T : ?Sized, Brand : PlaceBrand> OwnRef<'r, T, Brand> {
 }
 
 pub
-struct GhostInitProof<B : PlaceBrand>(
+struct GhostInitProof<B : IsBrandedPlace>(
     PD<B>,
 );
 
 pub trait Is { type EqualTo : ?Sized; }
 impl<T : ?Sized> Is for T { type EqualTo = T; }
 
-impl<Brand : PlaceBrand> GhostInitProof<Brand> {
+impl<BrandedPlace : IsBrandedPlace> GhostInitProof<BrandedPlace> {
     pub
-    fn indwell<'r, Brand2 : PlaceBrand, Husk : InitProvable<Brand2>>(
+    fn indwell<'r, Brand2 : IsBrandedPlace, Husk : InitProvable<Brand2>>(
         self,
         r: Husk,
     ) -> Husk::OwnedInit
     where
-        Brand2 : Is<EqualTo = Brand>,
+        Brand2 : Is<EqualTo = BrandedPlace>,
     {
-        fn indwell_helper<'r, Brand2 : PlaceBrand, Husk : InitProvable<Brand2>>(
+        fn indwell_helper<'r, Brand2 : IsBrandedPlace, Husk : InitProvable<Brand2>>(
             _: GhostInitProof<<Brand2 as Is>::EqualTo>,
             it: Husk,
         ) -> Husk::OwnedInit
@@ -91,7 +91,7 @@ impl<Brand : PlaceBrand> GhostInitProof<Brand> {
 }
 
 pub
-trait InitProvable<B : PlaceBrand> {
+trait InitProvable<B : IsBrandedPlace> {
     fn proven_init(
         _: GhostInitProof<B>,
         this: Self,
@@ -100,29 +100,29 @@ trait InitProvable<B : PlaceBrand> {
     type OwnedInit;
 }
 
-impl<'r, T : ?Sized> OwnRef<'r, T, Unbranded> {
+impl<'r, T : ?Sized> OwnRef<'r, T, NoBrandedPlace> {
     #[doc(alias = "new")]
     pub
     unsafe
-    fn assume_owns(r: &'r mut MD<T>) -> OwnRef<'r, T, Unbranded> {
+    fn assume_owns(r: &'r mut MD<T>) -> OwnRef<'r, T, NoBrandedPlace> {
         unsafe { Self::from_raw((&mut **r).into()) }
     }
 
     pub
     unsafe
-    fn from_raw(raw: ptr::NonNull<T>) -> OwnRef<'r, T, Unbranded> {
+    fn from_raw(raw: ptr::NonNull<T>) -> OwnRef<'r, T, NoBrandedPlace> {
         unsafe { Self::from_raw_branded_unchecked(raw) }
     }
 }
 
-impl<'r, T : ?Sized, B : MaybeBrand> ::core::ops::Deref for OwnRef<'r, T, B> {
+impl<'r, T : ?Sized, B : MaybeBrandedPlace> ::core::ops::Deref for OwnRef<'r, T, B> {
     fn deref(&self) -> &T {
         unsafe { self.raw.as_ref() }
     }
     type Target = T;
 }
 
-impl<'r, T : ?Sized, B : MaybeBrand> ::core::ops::DerefMut for OwnRef<'r, T, B> {
+impl<'r, T : ?Sized, B : MaybeBrandedPlace> ::core::ops::DerefMut for OwnRef<'r, T, B> {
     fn deref_mut(&mut self) -> &mut T {
         unsafe { self.raw.as_mut() }
     }
