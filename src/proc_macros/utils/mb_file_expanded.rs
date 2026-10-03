@@ -1,7 +1,7 @@
 use super::*;
 
 pub(crate)
-fn mb_file_expanded(output: TokenStream2) -> TokenStream2 {
+fn mb_file_expanded(warning_span: Span, output: TokenStream2) -> TokenStream2 {
     let mut debug_macros_dir = match ::std::env::var_os("DEBUG_MACROS_LOCATION") {
         Some(it) => ::std::path::PathBuf::from(it),
         None => return output,
@@ -42,8 +42,14 @@ fn mb_file_expanded(output: TokenStream2) -> TokenStream2 {
         )
     });
 
-    eprintln!("Output emitted to {file_name}");
-    let warning = compile_warning(&quote!(), &format!("Output emitted to {file_name}"));
+    let (start_span, end_span) = (
+        quote_spanned!(warning_span.located_at(Span::mixed_site())=> . ),
+        quote_spanned!(warning_span=> . ),
+    );
+    let warning = compile_warning(
+        &quote!(#start_span #end_span),
+        &format!("[DEBUG_MACROS_LOCATION]: Output emitted to {file_name}"),
+    );
     quote!(
         #warning
 

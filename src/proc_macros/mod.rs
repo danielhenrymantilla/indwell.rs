@@ -35,7 +35,7 @@ mod utils;
 #[proc_macro_derive(OutRefProject)] pub
 fn __(input: TokenStream) -> TokenStream {
     derive_out_ref(input.into())
-        .map(utils::mb_file_expanded)
+        .map(|(output, warning_span)| utils::mb_file_expanded(warning_span, output))
         .map_err(|mut error| {
             let mut errors =
                 error
@@ -53,8 +53,10 @@ fn __(input: TokenStream) -> TokenStream {
         .into()
 }
 
-fn derive_out_ref(input: TokenStream2) -> Result<TokenStream2> {
+fn derive_out_ref(input: TokenStream2) -> Result<(TokenStream2, Span)> {
     let input: &ItemStruct = &parse2(input)?;
+
+    let warning_span = input.ident.span();
 
     let context = &Context::new(input);
 
@@ -69,7 +71,7 @@ fn derive_out_ref(input: TokenStream2) -> Result<TokenStream2> {
 
     let indwell = indwell(input, context);
 
-    Ok(quote!(
+    let ret = quote!(
         #[allow(warnings, clippy::all)]
         const _: () = {
             #brands_appender
@@ -86,7 +88,8 @@ fn derive_out_ref(input: TokenStream2) -> Result<TokenStream2> {
         #into_ghost_init_with_def
 
         #indwell
-    ))
+    );
+    Ok((ret, warning_span))
 }
 
 struct Context {

@@ -37,6 +37,7 @@ pub(crate) fn compile_warning(
         #[allow(nonstandard_style, clippy::all)]
 
         const _: () = {
+            #[allow(warnings, clippy::all)]
             struct enroot_ {
                 #[deprecated(note = #message)]
                 #warning: ()
