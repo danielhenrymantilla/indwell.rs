@@ -90,6 +90,8 @@ fn derive_out_ref(input: TokenStream2) -> Result<TokenStream2> {
 }
 
 struct Context {
+    /// Privacy/visibility of the `struct`.
+    pub_: Visibility,
     /// `'__s`
     ref_lt: Lifetime,
     /// `__Place_s, __Place_x, …`
@@ -132,6 +134,7 @@ impl Context {
         ;
 
         Self {
+            pub_: input.vis.clone(),
             ref_lt,
             place_params,
             intro_place_params,
@@ -171,6 +174,7 @@ fn projection_struct(
         "OwnRef" => (StructOwnRefs.clone(), OwnRef),
         _ => unimplemented!(),
     };
+    let mut ORef_respanned = ORef.to_token_stream().into_iter().collect::<Vec<_>>();
 
     ret.ident = format_ident!("{}{which_ref}s", input.ident);
 
@@ -179,9 +183,22 @@ fn projection_struct(
     ret.generics.params.extend(intro_place_params.clone());
 
     ret.fields.iter_mut().zip(place_params).for_each(|(f, PlaceParam @ _)| {
-        let FieldTy @ _ = &f.ty;
-        f.ty = parse_quote!(
-            #ORef<#ref_lt, #FieldTy, #PlaceParam>
+        let FieldTy @ _ = &mut f.ty;
+        let span = FieldTy.span();
+        // This way if a diagnostic wants to complain about the privacy of a field of a tuple struct
+        // it will highlight the beginning and end of these tokens, _i.e._,
+        // the first token of `#(#ORef_spanned)*` as well as `>`. So both need to be spanned at
+        // the field type (or at least the beginning thereof).
+        ORef_respanned.iter_mut().for_each(|tt| tt.set_span(span));
+        let closing_angle_bracket = {
+            // This might be excessive… but it does improve the diagnostic…
+            let last_span = FieldTy.to_token_stream().into_iter().last().unwrap().span();
+            quote_spanned!(last_span=>
+                >
+            )
+        };
+        *FieldTy = parse_quote_spanned!(span=>
+            #(#ORef_respanned)* <#ref_lt, #FieldTy, #PlaceParam #closing_angle_bracket /* > */
         );
     });
 
@@ -266,7 +283,7 @@ fn project_impl(
 
 fn brands_appender(
     input: &ItemStruct,
-    Context { ref_lt, .. }: &Context,
+    Context { pub_, ref_lt, .. }: &Context,
 ) -> TokenStream2
 {
 
@@ -278,6 +295,8 @@ fn brands_appender(
         })
         .collect::<Vec<_>>()
     ;
+
+    let each_field_pub = input.fields.iter().map(|f| &f.vis);
 
     let (intro_generics, fwd_generics, mb_where_clause) = input.generics.split_for_impl();
 
@@ -315,12 +334,14 @@ fn brands_appender(
 
     quote!(
         #(
+            #each_field_pub
             enum #EachFieldNameEnum {}
         )*
 
         impl #intro_generics #StructName #fwd_generics
         #mb_where_clause
         {
+            #pub_
             fn attach_field_places<#ref_lt, __SelfPlace : #IsBrandedPlace>(
                 out_ref: #OutRef<#ref_lt, Self, __SelfPlace>
             ) -> #OutRef<#ref_lt, Self, #HList![
@@ -344,6 +365,7 @@ fn brands_appender(
 fn into_ghost_init_with_def(
     input: &ItemStruct,
     Context {
+        pub_,
         ref_lt,
         place_params: EachPlaceParam @ _,
         intro_place_params: IntroEachPlaceParam @ _,
@@ -394,7 +416,7 @@ fn into_ghost_init_with_def(
         #mb_where_clause
         {
             #[must_use = "this is leaking memory unless you call `.indwell()`"]
-            // TODO: visibility.
+            #pub_
             fn into_ghost_init(self) -> #StructGhostInit<#(#EachPlaceParam),*> {
                 #StructGhostInit {
                     #(
@@ -405,8 +427,9 @@ fn into_ghost_init_with_def(
         }
         // where:
         #[allow(warnings, clippy::all)]
+        #pub_
         struct #StructGhostInit<#(#IntroEachPlaceParam),*>
-        #ghost_init_fields
+            #ghost_init_fields
     )
 }
 
@@ -414,6 +437,7 @@ fn into_ghost_init_with_def(
 fn indwell(
     input: &ItemStruct,
     Context {
+        pub_,
         ref_lt,
         intro_place_params: IntroEachPlaceParam @ _,
         place_params: EachPlaceParam @ _,
@@ -437,6 +461,7 @@ fn indwell(
         impl<#(#IntroEachPlaceParam),*>
             #StructGhostInit<#(#EachPlaceParam),*>
         {
+            #pub_
             fn indwell<#ref_lt, __T, __SelfPlace : #IsBrandedPlace>(
                 self: #StructGhostInit<#(#EachPlaceParam),*>,
                 out_ref: #OutRef<#ref_lt, __T, #HList![

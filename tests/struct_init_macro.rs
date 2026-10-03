@@ -29,16 +29,19 @@ fn demo_init2() {
     let _b: Box<i32> = b.as_out_ref().write(42_i32).into_ghost_init().indwell(b);
 }
 
-#[derive(OutRefProject)]
-pub
-struct Foo<S : Send>
-where
-    S : Sync,
-{
-    s: S,
-    x: i32,
-}
+use scoped::*;
+mod scoped {
+    #[derive(::enroot::prelude::OutRefProject)]
+    pub
+    struct Foo<S : Send>
+    where
+        S : Sync,
+    {
+        pub(super) s: S,
+        pub(super) x: i32,
+    }
 
-#[derive(OutRefProject)]
-pub
-struct Bar<S>(S, i32);
+    #[derive(::enroot::prelude::OutRefProject)]
+    pub
+    struct Bar<S>(pub(super) S, pub(super) i32);
+}
