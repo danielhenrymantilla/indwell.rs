@@ -20,6 +20,7 @@ trait AsOutRef<T : ?Sized> {
     fn as_out_ref(&mut self) -> OutRef<'_, T>;
 }
 
+// Warning: this leaks memory!
 impl<T : ?Sized> AsOutRef<T> for T {
     fn as_out_ref<'r>(self: &'r mut T) -> OutRef<'r, T> {
         unsafe {
