@@ -59,7 +59,7 @@ impl BrandedPlace<'_> {
 pub trait Place<T> {}
 impl<T> Place<T> for () {}
 
-#[macro_export]
+#[doc(hidden)] /** Not part of the public API */ #[macro_export]
 macro_rules! ඞnew_branded_place {(
     as let $($binding:ident),+ $(,)?
 ) => (
