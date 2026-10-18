@@ -71,7 +71,7 @@ macro_rules! __let_quote {
             $snd:tt
             $($deeper:tt)*
         ]
-        $last_segment:ident $(as $rename:ident)? $(,
+        $last_segment:ident $(as $rename:ident $(@ $if_rename:tt)?)? $(,
         $($rest:tt)* )? $(;)?
     ) => (
         let quoted = crate::utils::let_quote::LazyQuote(
@@ -82,7 +82,7 @@ macro_rules! __let_quote {
         );
         #[allow(nonstandard_style, unused_variables)]
         #[cfg(all(
-            $($rename = "__if_provided",
+            $($($if_rename)?
                 any(),
             )?
         ))]
