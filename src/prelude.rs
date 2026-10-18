@@ -1,6 +1,7 @@
 pub use crate::{
     brand::{
         new_branded_place,
+        BrandedPlace,
         IsBrandedPlace,
         MaybeBrandedPlace,
     },
@@ -8,6 +9,7 @@ pub use crate::{
         HList,
     },
     indwell::{self,
+        indwell,
         UninitPlace as _,
     },
     own_ref::{

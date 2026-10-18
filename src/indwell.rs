@@ -18,6 +18,7 @@ impl<BrandedPlace : IsBrandedPlace> GhostInitProof<BrandedPlace> {
 
 impl<BrandedPlace : IsBrandedPlace> GhostInitProof<BrandedPlace> {
     pub
+    unsafe
     fn indwell<'r, BrandedPlace_ : IsBrandedPlace, Husk : UninitPlace<BrandedPlace_>>(
         self,
         r: Husk,
@@ -35,7 +36,9 @@ impl<BrandedPlace : IsBrandedPlace> GhostInitProof<BrandedPlace> {
             it: Husk,
         ) -> Husk::OwnedInit
         {
-            UninitPlace::proven_init(GhostInitProof(PD), it)
+            unsafe {
+                UninitPlace::proven_init(GhostInitProof(PD), it)
+            }
         }
 
         indwell_helper(self, r)
@@ -45,11 +48,12 @@ impl<BrandedPlace : IsBrandedPlace> GhostInitProof<BrandedPlace> {
 pub
 unsafe
 trait UninitPlace<BrandedPlace : IsBrandedPlace> : Sized {
-    unsafe
+    unsafe // for obvious reasons
     fn assume_init(self) -> Self::OwnedInit;
 
     type OwnedInit;
 
+    unsafe // because of the discovered non-lifetime-protected drop-in-place exploit.
     fn proven_init(
         _: GhostInitProof<BrandedPlace>,
         this: Self,
@@ -62,3 +66,13 @@ trait UninitPlace<BrandedPlace : IsBrandedPlace> : Sized {
         }
     }
 }
+
+#[doc(hidden)] /** Not part of the public API */ #[macro_export]
+macro_rules! ඞindwell {(
+    $uninit_place:ident <- $own_ref:expr $(,)?
+) => (
+    match $own_ref.into_ghost_init() {
+        ghost_init => unsafe { ghost_init.indwell($uninit_place) },
+    }
+)}
+pub use ඞindwell as indwell;

@@ -16,7 +16,7 @@ fn demo_init<'r, FooPlace : IsBrandedPlace>(
     let x = out_fields.x.write(42);
     let owned_fields = FooOwnRefs { s, x };
 
-    owned_fields.into_ghost_init().indwell(out_foo)
+    indwell!(out_foo <- owned_fields)
 }
 
 pub
@@ -84,6 +84,7 @@ struct FooGhostInit<PlaceS : IsBrandedPlace, PlaceX : IsBrandedPlace> {
 }
 
 impl<PlaceS : IsBrandedPlace, PlaceX : IsBrandedPlace> FooGhostInit<PlaceS, PlaceX> {
+    unsafe
     fn indwell<'s, T, BrandedPlace : IsBrandedPlace>(
         self: FooGhostInit<PlaceS, PlaceX>,
         out_ref: OutRef<'s, T, HList![BrandedPlace, PlaceS, PlaceX]>,

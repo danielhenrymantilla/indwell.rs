@@ -13,7 +13,7 @@ fn demo_init<'r, FooPlace : IsBrandedPlace>(
     let y = out_fields.y.write(27);
     let owned_fields = FooOwnRefs { s, x, y };
 
-    owned_fields.into_ghost_init().indwell(out_foo)
+    indwell!(out_foo <- owned_fields)
 }
 
 #[derive(::enroot::prelude::OutRefProject)]

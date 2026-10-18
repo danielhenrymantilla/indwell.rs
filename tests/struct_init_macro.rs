@@ -1,16 +1,7 @@
-use enroot::{brand::BrandedPlace, indwell::GhostInitProof};
 use ::enroot::prelude::*;
 
 fn f() -> Result<i32, ()> {
     Ok(42)
-}
-
-fn exploit<Place: IsBrandedPlace>(mut out_ref: OutRef<'_, String, Place>) {
-    let soul = out_ref.r().write(String::from("hey")).into_ghost_init();
-    let it = out_ref.r().write(String::from("oh no"));
-    drop(it);
-    // BAD BAD BAD
-    let it = soul.indwell(out_ref);
 }
 
 impl Foo<Bar<String>> {
@@ -21,22 +12,19 @@ impl Foo<Bar<String>> {
     {
         let mut out = Self::attach_field_places(out);
 
-        let mut out_fields = out.r();
+        let out_fields = out.project();
         let s = {
-            let mut out_s = Bar::attach_field_places(out_fields.project().s);
+            let mut out_s = Bar::attach_field_places(out_fields.s);
             let out_s_fields = out_s.project();
-            BarOwnRefs(
+            indwell!(out_s <- BarOwnRefs(
                 out_s_fields.0.write(s),
                 out_s_fields.1.write(f()?),
-            ).into_ghost_init().indwell(out_s)
-        }.into_ghost_init();
-        let mut out_fields = out.project();
+            ))
+        };
         let x = out_fields.x.write(42);
-        out_fields.s.r().write(Bar("oh no".into(), f()?));
-        let s = s.indwell(out_fields.s);
         let owned_fields = FooOwnRefs { s, x };
 
-        Ok(owned_fields.into_ghost_init().indwell(out))
+        Ok(indwell!(out <- owned_fields))
     }
 
     pub fn new<SelfPlace : IsBrandedPlace>(
@@ -115,8 +103,9 @@ macro_rules! box_emplace {( $try_ctor:expr $(,)? ) => (|| -> _ {
             out_uninit,
         )?
     ;
-    let init_token: GhostInitProof<BrandedPlace<'_, _>> = own_uninit.into_ghost_init();
-    Ok(init_token.indwell(b))
+    Ok(indwell!(b <- own_uninit))
+    // let init_token: GhostInitProof<BrandedPlace<'_, _>> = own_uninit.into_ghost_init();
+    // Ok(init_token.indwell(b))
 }())}
 pub(crate) use box_emplace;
 
@@ -124,6 +113,7 @@ macro_rules! stack_emplace {(
     let $(mut $(@if $mut:tt)?)? $binding:ident : &own $T:ty = $try_ctor:expr
 ) => (
     branded_uninit!(let uninit_in_stack);
+    let uninit_in_stack = &mut uninit_in_stack;
     let $($(if $mut)? mut)? $binding: OwnRef<'_, $T> = {
         let it =
             InPlaceTryCtor::<_, BrandedPlace<'_, _>>::try_in_place_init(
@@ -131,8 +121,9 @@ macro_rules! stack_emplace {(
                 uninit_in_stack.as_out_ref(),
             )?
         ;
-        it  .into_ghost_init() // .deref()
-            .indwell(&mut uninit_in_stack) // .with()
+        indwell!(uninit_in_stack <- it)
+        // it  .into_ghost_init()
+        //     .indwell(&mut uninit_in_stack)
             .unbrand()
         }
     ;
@@ -143,7 +134,7 @@ pub
 fn demo_init2() -> Box<i32> {
     branded_uninit!(let x);
     let mut b = Box::new(x);
-    let b: Box<i32> = b.as_out_ref().write(42_i32).into_ghost_init().indwell(b);
+    let b: Box<i32> = indwell!(b <- b.as_out_ref().write(42_i32));
     b
 }
 

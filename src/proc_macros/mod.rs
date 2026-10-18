@@ -465,6 +465,7 @@ fn indwell(
             #StructGhostInit<#(#EachPlaceParam),*>
         {
             #pub_
+            unsafe
             fn indwell<#ref_lt, __T, __SelfPlace : #IsBrandedPlace>(
                 self: #StructGhostInit<#(#EachPlaceParam),*>,
                 out_ref: #OutRef<#ref_lt, __T, #HList![
