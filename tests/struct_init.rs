@@ -98,6 +98,12 @@ impl<PlaceS : IsBrandedPlace, PlaceX : IsBrandedPlace> FooGhostInit<PlaceS, Plac
     }
 }
 
+impl
+    ::enroot::out_ref::derive_marker::OutRefProject
+for
+    Foo
+{}
+
 impl<Brand : IsBrandedPlace, PlaceS : IsBrandedPlace, PlaceX : IsBrandedPlace>
     ::enroot::out_ref::OutRefProject<HList![Brand, PlaceS, PlaceX]>
 for

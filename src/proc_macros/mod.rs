@@ -223,7 +223,7 @@ fn project_impl(
         use ::enroot::{
             brand::IsBrandedPlace,
             hlist::HList,
-            out_ref::{OutRef, OutRefProject},
+            out_ref::{OutRef, OutRefProject, derive_marker::OutRefProject as derive_marker_OutRefProject},
         };
     );
 
@@ -260,7 +260,16 @@ fn project_impl(
     generics_with_lt.params.extend(intro_place_params.clone());
     let (_, fwd_all_generics, _) = generics_with_lt.split_for_impl();
 
+    let (simple_intro, _, simple_mb_where_clause) = input.generics.split_for_impl();
+
     quote!(
+        impl #simple_intro
+            #derive_marker_OutRefProject
+        for
+            #StructName #fwd_generics
+        #simple_mb_where_clause
+        {}
+
         impl #intro_generics
             #OutRefProject<
                 #HList![#BrandParam #(, #EachPlaceParam)*],
