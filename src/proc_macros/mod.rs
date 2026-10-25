@@ -64,8 +64,8 @@ fn derive_out_ref(input: TokenStream2) -> Result<(TokenStream2, Span)> {
 
     let project_impl = project_impl(input, context);
 
-    let out_refs_struct = projection_struct(input, context, "OutRef");
-    let own_refs_struct = projection_struct(input, context, "OwnRef");
+    let out_refs_struct = projection_struct(input, context, WhichRef::OutRef);
+    let own_refs_struct = projection_struct(input, context, WhichRef::OwnRef);
 
     let into_ghost_init_with_def = into_ghost_init_with_def(input, context);
 
@@ -95,6 +95,9 @@ fn derive_out_ref(input: TokenStream2) -> Result<(TokenStream2, Span)> {
 struct Context {
     /// Privacy/visibility of the `struct`.
     pub_: Visibility,
+    // /// Min/intersection of all the visibilities (max/union of all the privacies) of the `struct`
+    // /// and its fields.
+    // min_pub: Visibility,
     /// `'__s`
     ref_lt: Lifetime,
     /// `__Place_s, __Place_x, …`
@@ -137,7 +140,22 @@ impl Context {
         ;
 
         Self {
-            pub_: input.vis.clone(),
+            // pub_: input.vis.clone(),
+            pub_:
+                // We can't really resolve what the actual min might be in the general case
+                // (arbitrary `pub(in some::path)` case), but we don't need fine-grained privacy
+                // here (field privacy in and of itself will take care of it).
+                //
+                // What we want is to determine whether we go can fully `pub` or not. Otherwise any
+                // non-`pub` privacy will do.
+                Iterator::chain(
+                    ::core::iter::once(&input.vis),
+                    input.fields.iter().map(|f| &f.vis),
+                )
+                .find(|v| matches!(v, Visibility::Public { .. }).not())
+                .unwrap_or(&input.vis)
+                .clone()
+            ,
             ref_lt,
             place_params,
             intro_place_params,
@@ -148,9 +166,16 @@ impl Context {
     }
 }
 
+#[derive(Debug)]
+enum WhichRef {
+    OwnRef,
+    OutRef,
+}
+
 fn projection_struct(
     input: &ItemStruct,
     Context {
+        pub_,
         ref_lt,
         place_params,
         intro_place_params,
@@ -158,7 +183,7 @@ fn projection_struct(
         StructOwnRefs,
         ..
     }: &Context,
-    which_ref: &str,
+    which_ref: WhichRef,
 ) -> ItemStruct
 {
     let_quote!(
@@ -173,13 +198,12 @@ fn projection_struct(
 
     let ORef @ _;
     (ret.ident, ORef) = match which_ref {
-        "OutRef" => (StructOutRefs.clone(), OutRef),
-        "OwnRef" => (StructOwnRefs.clone(), OwnRef),
-        _ => unimplemented!(),
+        WhichRef::OutRef => (StructOutRefs.clone(), OutRef),
+        WhichRef::OwnRef => (StructOwnRefs.clone(), OwnRef),
     };
     let mut ORef_respanned = ORef.to_token_stream().into_iter().collect::<Vec<_>>();
 
-    ret.ident = format_ident!("{}{which_ref}s", input.ident);
+    ret.ident = format_ident!("{}{which_ref:?}s", input.ident);
 
 
     ret.generics.params.insert(0, parse_quote!(#ref_lt));
@@ -204,6 +228,18 @@ fn projection_struct(
             #(#ORef_respanned)* <#ref_lt, #FieldTy, #PlaceParam #closing_angle_bracket /* > */
         );
     });
+
+    if matches!(pub_, Visibility::Public { .. }).not() {
+        match which_ref {
+            WhichRef::OwnRef => ret.vis.clone_from(&pub_),
+            WhichRef::OutRef => {
+                // We can't really make it non-`pub` as it's used as the assoc type of a `pub trait`
+                ret.attrs.push(parse_quote_spanned!(pub_.span()=>
+                    #[doc(hidden)]
+                ))
+            },
+        }
+    }
 
     ret
 }
@@ -318,7 +354,7 @@ fn brands_appender(
         use ::enroot::{
             brand::{BrandedPlace, IsBrandedPlace, Place},
             hlist::HList,
-            out_ref::OutRef,
+            out_ref::{OutRef, OutRefProject},
         };
     );
 
@@ -353,6 +389,10 @@ fn brands_appender(
         impl #intro_generics #StructName #fwd_generics
         #mb_where_clause
         {
+            /// Magic function provided by <code>#[derive([OutRefProject])]</code>, to enable usage
+            /// of [`OutRef::project()`][`::enroot::out_ref::OutRef::project()`].
+            ///
+            /// [OutRefProject]: `derive@::enroot::out_ref::OutRefProject`
             #pub_
             fn attach_field_places<#ref_lt, __SelfPlace : #IsBrandedPlace>(
                 out_ref: #OutRef<#ref_lt, Self, __SelfPlace>
