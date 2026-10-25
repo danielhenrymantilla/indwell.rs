@@ -2,10 +2,10 @@ use ::enroot::prelude::*;
 
 pub
 fn demo_init<'r, FooPlace : IsBrandedPlace>(
-    mut out_foo: OutRef<'r, Foo, FooPlace>
+    out_foo: OutRef<'r, Foo, FooPlace>
 ) -> OwnRef<'r, Foo, FooPlace>
 {
-    // let mut out_foo = Foo::attach_field_places(out_foo);
+    let mut out_foo = Foo::attach_field_places(out_foo);
 
     let out_fields = out_foo.project();
     let s = out_fields.s.write("heh".into());

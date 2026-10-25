@@ -1,5 +1,7 @@
 use crate::*;
 
+pub use crate::proc_macros::OutRefProject;
+
 #[repr(transparent)]
 pub
 struct OutRef<'r, T : ?Sized, P : MaybeBrandedPlace = NoBrandedPlace> {
@@ -20,8 +22,38 @@ trait AsOutRef<T : ?Sized> {
     fn as_out_ref(&mut self) -> OutRef<'_, T>;
 }
 
+pub
+trait AsManuallyDropMut {
+    /// Cast the current `&mut` reference into a <code>\&mut [ManuallyDrop]\<T\></code> reference
+    /// so as to, notably, be able to call [`.as_out_ref()`] on it.
+    ///
+    /// Note that such a pattern is **prone to memory leaks**. And trying to `unsafe`ly manually
+    /// call [`ManuallyDrop::drop()`] or [`ManuallyDrop::take()`] on it before the [`.as_out_ref()`]
+    /// call will probably just result in a high risk of double-frees in case of unwinds (panics).
+    ///
+    /// Consider, instead, operating on the `T` *by value* to begin with; wrapping it, by
+    /// value, in a [`ManuallyDrop`], or better, in a struct with a drop flag.
+    ///
+    /// [ManuallyDrop]: `MD`
+    /// [`ManuallyDrop`]: `MD`
+    /// [`ManuallyDrop::drop()`]: `MD::drop()`
+    /// [`ManuallyDrop::take()`]: `MD::take()`
+    /// [`.as_out_ref()`]: `AsOutRef::as_out_ref()`
+    fn as_manually_drop_mut_leaky_and_unchecked<'r>(self: &'r mut Self) -> &'r mut MD<Self>
+    where
+        &'r mut MD<Self> : AsOutRef<Self>,
+    {
+        unsafe {
+            // Safety: `repr(transparent)` referee, same layout of the (potentially wide) reference,
+            // and unless the caller uses `unsafe`, the worst they can do API-wise is a leak.
+            mem::transmute(self)
+        }
+    }
+}
+impl<T : ?Sized> AsManuallyDropMut for T {}
+
 // Warning: this leaks memory!
-impl<T : ?Sized> AsOutRef<T> for T {
+impl<T : Copy> AsOutRef<T> for T {
     fn as_out_ref<'r>(self: &'r mut T) -> OutRef<'r, T> {
         unsafe {
             OutRef::from_raw(self.into())
@@ -130,17 +162,9 @@ struct BrandedUninit<T, BrandedPlace : IsBrandedPlace> {
     _brand: PD<fn() -> BrandedPlace>,
 }
 
-pub
-fn branded_uninit<T, BrandedPlace : IsBrandedPlace>(
-    branded_place: BrandedPlace,
-) -> BrandedUninit<T, BrandedPlace>
-{
-    BrandedUninit::new(branded_place)
-}
-
 impl<T, BrandedPlace : IsBrandedPlace> BrandedUninit<T, BrandedPlace> {
     pub
-    fn new(_branded_place: BrandedPlace) -> BrandedUninit<T, BrandedPlace> {
+    fn new_uninit(_branded_place: BrandedPlace) -> BrandedUninit<T, BrandedPlace> {
         Self { value: MU::uninit(), _brand: PD }
     }
 
@@ -188,14 +212,47 @@ for
     type OwnedInit = Box<T>;
 }
 
-#[doc(hidden)] /** Not part of the public API */ #[macro_export]
+/// Main [`BrandedUninit<T>`] constructor.
+///
+/// <code>[branded_uninit!](as let foo: SomeType);</code> is the moral equivalent of
+/// <code>[BrandedUninit]::new(new_brand!())</code>.
+///
+/// In fact, it is literally just sugar for calling [`new_branded_place!()`] followed by
+/// [`BrandedUninit::new_uninit()`] on it:
+///
+/// ```rust
+/// # use ::enroot::prelude::*;
+/// // 1. Create a new `BrandedPlace` to be inferred/resolved to refer to that of `foo`.
+/// new_branded_place!(as let foo_place);
+/// // 2. Create a morally `MaybeUninit::uninit()` `foo` but with that `BrandedPlace` attached.
+/// let mut foo = BrandedUninit::<SomeType, _>::new_uninit(foo_place);
+/// ```
+///
+/// The `: Type` part in <code>[branded_uninit!](as let varname: Type);</code> can be elided so it
+/// be inferred.
+///
+/// # Example
+///
+/// ```rust
+/// use ::enroot::prelude::*;
+///
+/// branded_uninit!(as let foo: String);
+/// // results in:
+/// let _: BrandedUninit<String, BrandedPlace<'_, _>> = foo;
+///
+/// // And:
+/// branded_uninit!(as let foo);
+/// // is sugar for:
+/// branded_uninit!(as let foo: _);
+/// ```
+#[doc(hidden)] /* Not part of the public API */ #[macro_export]
 macro_rules! ඞbranded_uninit {(
     let $($binding:ident $(: $T:ty)?),+ $(,)?
 ) => (
     $crate::brand::new_branded_place!(as let $($binding),+);
     $(
         #[allow(unused_mut)]
-        let mut $binding = $crate::out_ref::branded_uninit $(::<$T, _>)? ($binding);
+        let mut $binding = $crate::out_ref::BrandedUninit $(::<$T, _>)? ::new_uninit($binding);
     )+
 )}
 #[doc(inline)]
@@ -213,16 +270,6 @@ impl<'r, T : ?Sized, FieldPlaces : IsBrandedPlace>
     {
         OutRefProject::project_impl(self.r())
     }
-}
-
-pub use crate::proc_macros::OutRefProject;
-
-pub mod derive_marker {
-    #[diagnostic::on_unimplemented(
-        message = "Missing `#[derive(OutRefProject)]` on `{Self}`",
-        label = "add `#[derive(OutRefProject)]` on its receiver",
-    )]
-    pub trait OutRefProject {}
 }
 
 #[diagnostic::on_unimplemented(
@@ -246,15 +293,61 @@ pub mod derive_marker {
     "
 )]
 pub
-trait OutRefProject<BrandedPlaces : IsBrandedPlace>
+trait OutRefProject<BrandedPlaceAndFieldPlaces : IsBrandedPlace>
 :
     // derive_marker::OutRefProject;
 {
     type Projection<'s>;
     fn project_impl<'s>(
-        out_ref: OutRef<'s, Self, BrandedPlaces>,
+        out_ref: OutRef<'s, Self, BrandedPlaceAndFieldPlaces>,
     ) -> Self::Projection<'s>
     ;
+}
+
+#[doc(hidden)] /** Not part of the public API */ pub
+mod derive_marker {
+    #[diagnostic::on_unimplemented(
+        message = "Missing `#[derive(OutRefProject)]` on `{Self}`",
+        label = "add `#[derive(OutRefProject)]` on its receiver",
+        // note = "From there, you will need "
+    )]
+    pub trait OutRefProject {}
+}
+
+pub(crate) mod more_diagnostics_tricks {
+    use super::*;
+
+    pub
+    trait OutRefProject<BrandedPlaceAndFieldPlaces : IsBrandedPlace> {
+        // This is an assoc function provided through a `prelude`-provided extension trait.
+        //
+        // This way somebody somehow guessing to use this but having forgotten the `derive` will
+        // get better diagnostics than a mere "assoc function not found".
+        //
+        /// Magic function provided by <code>#[derive([OutRefProject])]</code>, to enable usage
+        /// of [`OutRef::project()`].
+        ///
+        /// [OutRefProject]: `derive@OutRefProject`
+        fn attach_field_places<'r>(_: OutRef<'r, Self, impl IsBrandedPlace>)
+          -> OutRef<'r, Self, BrandedPlaceAndFieldPlaces>
+        where
+            Self : derive_marker::OutRefProject,
+        {
+            Self::NEVER
+        }
+    }
+    impl<'brand, T, Place> OutRefProject<BrandedPlace<'brand, Place>> for T {}
+
+    mod derive_marker {
+        #[diagnostic::on_unimplemented(
+            message = "Missing `#[derive(OutRefProject)]` on `{Self}`",
+            label = "needs a `#[derive(OutRefProject)]`",
+        )]
+        pub
+        trait OutRefProject {
+            const NEVER: ::never_say_never::Never;
+        }
+    }
 }
 
 impl<'r, T : ?Sized, TPlace : IsBrandedPlace, FieldPlaces: IsBrandedPlace>

@@ -1,11 +1,21 @@
 use crate::*;
 
+/// Trait to be generic over [`NoBrandedPlace`], [`BrandedPlace`]s, or [`hlist`]s thereof.
+///
+/// Conceptually, you can think of it as <code>[Option]\<[IsBrandedPlace]\></code>, with
+///
+///   - [`NoBrandedPlace`] being <code>[MaybeBrandedPlace]::[None]</code>,
+///
+///   - <code>\{[Is],\}[BrandedPlace]</code> being <code>[MaybeBrandedPlace]::[Some]</code>
+///
+/// [Is]: `IsBrandedPlace`
 pub
 trait MaybeBrandedPlace
 :
     Sized + Send + Sync + seal::Sealed +
 {}
 
+/// Trait to be generic over [`BrandedPlace`]s, or [`hlist`]s thereof.
 #[diagnostic::on_unimplemented(
     message = "unbranded (default) `NoBrandedPlace` parameter cannot be soundly used with this API",
     label = "this instance is missing an `impl BrandedPlace` parameter",
@@ -21,6 +31,8 @@ trait IsBrandedPlace
     MaybeBrandedPlace +
 {}
 
+/// A brand uniquely identifying a specific _place_: some specific `struct` instance (at a specific
+/// location) or some descendant field thereof.
 pub
 struct BrandedPlace<'brand, Place = ()>(
     PD<fn(&mut &'brand ()) -> Place>,
@@ -28,6 +40,8 @@ struct BrandedPlace<'brand, Place = ()>(
 
 impl<'brand, Place> IsBrandedPlace for BrandedPlace<'brand, Place> {}
 
+/// Type-level representation of <code>[MaybeBrandedPlace]::[None]</code>. Used, thus, when no
+/// branding reasoning is involved.
 pub
 enum NoBrandedPlace {}
 
@@ -45,21 +59,32 @@ mod seal {
 }
 
 impl BrandedPlace<'_> {
+    /// [`BrandedPlace<'_>`] scoped constructor, exposed for the sake of its "conceptual
+    /// simplicity", mostly for teaching purposes.
+    ///
+    /// [`new_branded_place!`] is, however, the way more ergonomic, flexible, and
+    /// compiler-diagnostics-friendly alternative. You ought to be using that instead.
     pub
     fn with_new<R>(scope: impl FnOnce(BrandedPlace<'_>) -> R) -> R {
         scope(Self(PD))
     }
 
+    /// Async-scope version of [`Self::with_new()`].
+    ///
+    /// [`new_branded_place!`] is, however, the way more ergonomic, flexible, and
+    /// compiler-diagnostics-friendly alternative, even more so within `async` code! You ought to be
+    /// using that instead.
     pub
     async fn with_new_async<R>(scope: impl AsyncFnOnce(BrandedPlace<'_>) -> R) -> R {
         scope(Self(PD)).await
     }
 }
 
-pub trait Place<T> {}
+#[doc(hidden)] /** Not part of the public API */ pub
+trait Place<T> {}
 impl<T> Place<T> for () {}
 
-#[doc(hidden)] /** Not part of the public API */ #[macro_export]
+#[doc(hidden)] /* Not part of the public API */ #[macro_export]
 macro_rules! ඞnew_branded_place {(
     as let $($binding:ident),+ $(,)?
 ) => (

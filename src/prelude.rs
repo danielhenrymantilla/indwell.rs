@@ -20,6 +20,7 @@ pub use crate::{
         BrandedUninit,
         OutRef,
         OutRefProject,
+        more_diagnostics_tricks::OutRefProject as _,
     },
 };
 pub use ::core::ops::Not as _;

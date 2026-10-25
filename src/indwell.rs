@@ -67,7 +67,7 @@ trait UninitPlace<BrandedPlace : IsBrandedPlace> : Sized {
     }
 }
 
-#[doc(hidden)] /** Not part of the public API */ #[macro_export]
+#[doc(hidden)] /* Not part of the public API */ #[macro_export]
 macro_rules! ඞindwell {(
     $uninit_place:ident <- $own_ref:expr $(,)?
 ) => (
