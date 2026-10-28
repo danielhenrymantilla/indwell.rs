@@ -8,14 +8,14 @@ use crate::*;
 macro_rules! ඞHList {
     [] => { () };
 
-    [ $Hd:ty, ..$Rest:ty ] => {
+    [ $Hd:ty, ..$Rest:ty $(,)? ] => {
         ($Hd, $Rest)
     };
 
     [ $Hd:ty $(, $Rest:ty)* $(,)? ] => {
         (
             $Hd,
-            $crate::hlist::HList![$($Rest),*]
+            $crate::brand::hlist::HList![$($Rest),*]
         )
     };
 

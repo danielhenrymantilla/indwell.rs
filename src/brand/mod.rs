@@ -1,3 +1,6 @@
+pub
+mod hlist;
+
 use crate::*;
 
 /// Trait to be generic over [`NoBrandedPlace`], [`BrandedPlace`]s, or [`hlist`]s thereof.

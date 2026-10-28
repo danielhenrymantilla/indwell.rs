@@ -4,9 +4,9 @@ pub use crate::{
         BrandedPlace,
         IsBrandedPlace,
         MaybeBrandedPlace,
-    },
-    hlist::{
-        HList,
+        hlist::{
+            HList,
+        },
     },
     indwell::{self,
         indwell,

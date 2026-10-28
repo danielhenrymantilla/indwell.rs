@@ -258,7 +258,7 @@ fn project_impl(
     let_quote!(
         use ::enroot::{
             brand::IsBrandedPlace,
-            hlist::HList,
+            brand::hlist::HList,
             out_ref::{OutRef, OutRefProject, derive_marker::OutRefProject as derive_marker_OutRefProject},
         };
     );
@@ -353,7 +353,7 @@ fn brands_appender(
     let_quote!(
         use ::enroot::{
             brand::{BrandedPlace, IsBrandedPlace, Place},
-            hlist::HList,
+            brand::hlist::HList,
             out_ref::{OutRef, OutRefProject},
         };
     );
@@ -502,7 +502,7 @@ fn indwell(
     let_quote!(
         use ::enroot::{
             brand::IsBrandedPlace,
-            hlist::HList,
+            brand::hlist::HList,
             own_ref::OwnRef,
             out_ref::OutRef,
         };
