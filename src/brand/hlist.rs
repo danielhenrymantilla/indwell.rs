@@ -1,5 +1,7 @@
 use crate::*;
 
+pub struct Fields<T>(T);
+
 #[macro_export]
 /// <!-- rust-analyzer delimiter nudge
 /// ```rust ,ignore
@@ -45,4 +47,16 @@ impl<Hd : IsBrandedPlace>
     IsBrandedPlace
 for
     HList![Hd]
+{}
+
+impl<Tl : MaybeBrandedPlace>
+    crate::brand::ImplMaybeBrand
+for
+    Fields<Tl>
+{}
+
+impl<Tl : IsBrandedPlace>
+    IsBrandedPlace
+for
+    Fields<Tl>
 {}

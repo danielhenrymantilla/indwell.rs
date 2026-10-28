@@ -7,8 +7,8 @@ use ::core::{
 use ::proc_macro::{
     TokenStream,
 };
-use proc_macro2::Span;
 use ::proc_macro2::{
+    Span,
     TokenStream as TokenStream2,
 };
 use ::quote::{
@@ -258,7 +258,7 @@ fn project_impl(
     let_quote!(
         use ::enroot::{
             brand::IsBrandedPlace,
-            brand::hlist::HList,
+            brand::hlist::{Fields, HList},
             out_ref::{OutRef, OutRefProject, derive_marker::OutRefProject as derive_marker_OutRefProject},
         };
     );
@@ -308,7 +308,7 @@ fn project_impl(
 
         impl #intro_generics
             #OutRefProject<
-                #HList![#BrandParam #(, #EachPlaceParam)*],
+                #HList![#BrandParam, ..#Fields<#HList![ #(#EachPlaceParam),* ]>],
             >
         for
             #StructName #fwd_generics
@@ -317,7 +317,7 @@ fn project_impl(
             type Projection<#ref_lt> = #StructOutRefs #fwd_all_generics ;
 
             fn project_impl<#ref_lt>(
-                out_ref: #OutRef<#ref_lt, Self, #HList![#BrandParam #(, #EachPlaceParam)*]>,
+                out_ref: #OutRef<#ref_lt, Self, #HList![#BrandParam, ..#Fields<#HList![ #(#EachPlaceParam),* ]>]>,
             ) -> #StructOutRefs #fwd_all_generics
             {
                 let #raw = out_ref.into_raw();
@@ -353,7 +353,7 @@ fn brands_appender(
     let_quote!(
         use ::enroot::{
             brand::{BrandedPlace, IsBrandedPlace, Place},
-            brand::hlist::HList,
+            brand::hlist::{Fields, HList},
             out_ref::{OutRef, OutRefProject},
         };
     );
@@ -397,14 +397,18 @@ fn brands_appender(
             fn attach_field_places<#ref_lt, __SelfPlace : #IsBrandedPlace>(
                 out_ref: #OutRef<#ref_lt, Self, __SelfPlace>
             ) -> #OutRef<#ref_lt, Self, #HList![
-                __SelfPlace, #(
-                #EachFieldSubBrand ,)*
-            ]>
+                    __SelfPlace,
+                    ..#Fields<#HList![
+                        #( #EachFieldSubBrand ),*
+                    ]>
+                ]>
             {
                 unsafe {
                     #OutRef::<Self, #HList![
-                        __SelfPlace, #(
-                        #EachFieldSubBrandConcrete ,)*
+                        __SelfPlace,
+                        ..#Fields<#HList![
+                            #( #EachFieldSubBrandConcrete ),*
+                        ]>
                     ]>::from_raw_branded_unchecked(
                         #OutRef::into_raw(out_ref)
                     )
@@ -502,7 +506,7 @@ fn indwell(
     let_quote!(
         use ::enroot::{
             brand::IsBrandedPlace,
-            brand::hlist::HList,
+            brand::hlist::{Fields, HList},
             own_ref::OwnRef,
             out_ref::OutRef,
         };
@@ -518,8 +522,10 @@ fn indwell(
             fn indwell<#ref_lt, __T, __SelfPlace : #IsBrandedPlace>(
                 self: #StructGhostInit<#(#EachPlaceParam),*>,
                 out_ref: #OutRef<#ref_lt, __T, #HList![
-                    __SelfPlace #(,
-                    #EachPlaceParam )*
+                    __SelfPlace,
+                    ..#Fields<#HList![
+                        #( #EachPlaceParam ),*
+                    ]>
                 ]>,
             ) -> #OwnRef<#ref_lt, __T, __SelfPlace>
             {
