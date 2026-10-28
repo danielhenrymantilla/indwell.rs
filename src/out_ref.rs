@@ -6,7 +6,7 @@ pub use crate::proc_macros::OutRefProject;
 pub
 struct OutRef<'r, T : ?Sized, P : MaybeBrandedPlace = NoBrandedPlace> {
     raw: ptr::NonNull<T>,
-    _phantom: PD<fn(fn(&'r (), &mut T)) -> P>,
+    _phantom: PD<fn(&'r (), &mut T) -> P>,
     _owns_t: PD<T>,
 }
 

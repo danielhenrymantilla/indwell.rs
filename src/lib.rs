@@ -1,3 +1,8 @@
+#![allow(
+    clippy::style,
+        clippy::needless_arbitrary_self_type,
+)]
+
 // private prelude:
 use {
     crate::{

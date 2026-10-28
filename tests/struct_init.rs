@@ -1,3 +1,5 @@
+#![allow(clippy::all)]
+
 use ::core::ptr;
 use ::enroot::{
     prelude::*,

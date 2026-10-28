@@ -19,7 +19,7 @@ impl<BrandedPlace : IsBrandedPlace> GhostInitProof<BrandedPlace> {
 impl<BrandedPlace : IsBrandedPlace> GhostInitProof<BrandedPlace> {
     pub
     unsafe
-    fn indwell<'r, BrandedPlace_ : IsBrandedPlace, Husk : UninitPlace<BrandedPlace_>>(
+    fn indwell<BrandedPlace_ : IsBrandedPlace, Husk : UninitPlace<BrandedPlace_>>(
         self,
         r: Husk,
     ) -> Husk::OwnedInit
@@ -31,7 +31,7 @@ impl<BrandedPlace : IsBrandedPlace> GhostInitProof<BrandedPlace> {
         // about `ActualPlace ≠ BadPlace`, which is exactly the desired diagnostics).
         BrandedPlace_ : diagnostics::Is<EqualTo = BrandedPlace>,
     {
-        fn indwell_helper<'r, BrandedPlace_ : IsBrandedPlace, Husk : UninitPlace<BrandedPlace_>>(
+        fn indwell_helper<BrandedPlace_ : IsBrandedPlace, Husk : UninitPlace<BrandedPlace_>>(
             _: GhostInitProof<<BrandedPlace_ as Is>::EqualTo>,
             it: Husk,
         ) -> Husk::OwnedInit

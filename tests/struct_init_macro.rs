@@ -1,3 +1,5 @@
+#![allow(clippy::all)]
+
 use ::enroot::prelude::*;
 
 fn f() -> Result<i32, ()> {
