@@ -1,3 +1,5 @@
+use never_say_never::Never;
+
 use super::*;
 
 impl<'r, T : ?Sized, FieldPlaces : IsBrandedPlace>
@@ -106,3 +108,163 @@ impl<'r, T : ?Sized, TPlace : IsBrandedPlace, FieldPlaces: IsBrandedPlace>
         }
     }
 }
+
+impl<'r, T> OutRef<'r, [T], NoBrandedPlace> {
+    pub
+    fn len(&self) -> usize {
+        self.raw.as_ptr().len()
+    }
+
+    pub
+    fn get_out<'get>(
+        self: &'get mut OutRef<'r, [T], NoBrandedPlace>,
+        idx: usize,
+    ) -> Option<
+            OutRef<'get, T, NoBrandedPlace>,
+        >
+    {
+        (idx < self.len()).then(|| {
+            let wide_ptr: *mut [T] = self.raw.as_ptr();
+            let thin_base: *mut T = wide_ptr as _;
+            unsafe {
+                OutRef::from_raw_branded_unchecked(ptr::NonNull::new(thin_base.add(idx)).unwrap())
+            }
+        })
+    }
+
+    pub
+    fn split_at_out<'get>(
+        self: &'get mut OutRef<'r, [T], NoBrandedPlace>,
+        mid_idx: usize,
+    ) -> Option<(
+            OutRef<'get, [T], NoBrandedPlace>,
+            OutRef<'get, [T], NoBrandedPlace>,
+        )>
+    {
+        let right_len = self.len().checked_sub(mid_idx)?;
+        let wide_ptr: *mut [T] = self.raw.as_ptr();
+        let thin_base: *mut T = wide_ptr as _;
+        let ret = unsafe {
+            let (wide_left, wide_right) = (
+                ::core::ptr::slice_from_raw_parts_mut(thin_base.add(0), mid_idx),
+                ::core::ptr::slice_from_raw_parts_mut(thin_base.add(mid_idx), right_len),
+            );
+            (
+                OutRef::from_raw(ptr::NonNull::new(wide_left).unwrap()),
+                OutRef::from_raw(ptr::NonNull::new(wide_right).unwrap()),
+            )
+        };
+        Some(ret)
+    }
+}
+
+generate_scoped_slice_emplacers!(
+    [/* no async await */],
+    emplace_each_with,
+    try_emplace_each_with,
+    with_new_tainted,
+    FnMut,
+);
+generate_scoped_slice_emplacers!(
+    [async await],
+    emplace_each_with_async,
+    try_emplace_each_with_async,
+    with_new_tainted_async,
+    AsyncFnMut,
+);
+// where
+macro_rules! generate_scoped_slice_emplacers {(
+    [ $($async:ident $await:ident)? ],
+    $emplace_each_with_mb_async:ident,
+    $try_emplace_each_with_mb_async:ident,
+    $with_new_tainted_mb_async:ident,
+    $MbAsyncFnMut:ident $(,)?
+) => (
+    impl<'r, T, P : MaybeBrandedPlace> OutRef<'r, [T], P> {
+        pub
+        $($async)?
+        fn $emplace_each_with_mb_async (
+            self: OutRef<'r, [T], P>,
+            mut emplace_one: impl for<'s, 'brand> $MbAsyncFnMut(
+                OutRef<'s, T, BrandedPlace<'brand, P>>,
+            ) -> OwnRef<'s, T, BrandedPlace<'brand, P>>,
+        ) -> OwnRef<'r, [T], P>
+        where
+            T : 'r,
+        {
+            let Ok::<_, Never>(own_ref) =
+                self.$try_emplace_each_with_mb_async(
+                    $($async)? move |out_ref| Ok( emplace_one(out_ref) $(.$await)? )
+                )
+                    $(.$await)?
+            ;
+            own_ref
+        }
+
+        pub
+        $($async)?
+        fn $try_emplace_each_with_mb_async<E>(
+            self: OutRef<'r, [T], P>,
+            mut try_emplace_one: impl for<'s, 'brand> $MbAsyncFnMut(
+                OutRef<'s, T, BrandedPlace<'brand, P>>,
+            ) -> Result<
+                    OwnRef<'s, T, BrandedPlace<'brand, P>>,
+                    E,
+                >
+            ,
+        ) -> Result<OwnRef<'r, [T], P>, E>
+        where
+            T : 'r,
+        {
+            struct State<'r, T> {
+                uninit_slice_mut: &'r mut [MU<T>],
+                /// Number of indwelled, and thus initialized, items (`0..num_indwelled`).
+                num_indwelled: usize,
+            }
+            let mut guard = crate::utils::UnarmedDropGuard {
+                state: State {
+                    uninit_slice_mut: unsafe { self.as_uninit_mut() },
+                    num_indwelled: 0,
+                },
+                drop: |State { uninit_slice_mut, num_indwelled }| unsafe {
+                    ::core::ptr::drop_in_place::<[T]>(
+                        ::core::ptr::slice_from_raw_parts_mut(
+                            uninit_slice_mut.as_mut_ptr().cast(),
+                            num_indwelled,
+                        ),
+                    );
+                },
+            }.armed();
+
+            let g = &mut *guard;
+            for uninit_mut in &mut *g.uninit_slice_mut {
+                BrandedPlace::$with_new_tainted_mb_async($($async)? |bruh| -> Result<_, E> {
+                    let out_ref: OutRef<'_, T, BrandedPlace<'_, P>> =
+                        uninit_mut.as_out().branded(bruh)
+                    ;
+                    let own_ref: OwnRef<'_, T, BrandedPlace<'_, P>> =
+                        try_emplace_one(out_ref)
+                            $(.$await)?
+                            ?
+                    ;
+                    // "soul transfusion": transfer/move ownership of that `T` into `guard`
+                    g.num_indwelled += {
+                        ::core::mem::forget(own_ref);
+                        1
+                    };
+                    Ok(())
+                })
+                    $(.$await)?
+                    ?
+                ;
+            }
+            debug_assert_eq!(g.num_indwelled, g.uninit_slice_mut.len());
+            let State { uninit_slice_mut, num_indwelled: _ } = guard.disarm().state;
+
+            Ok(unsafe {
+                mem::transmute(uninit_slice_mut)
+            })
+        }
+    }
+)}
+use generate_scoped_slice_emplacers;
