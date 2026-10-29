@@ -7,11 +7,11 @@ struct GhostInitProof<BrandedPlace : IsBrandedPlace>(
     PD<fn() -> BrandedPlace>,
 );
 
-impl<BrandedPlace : IsBrandedPlace> GhostInitProof<BrandedPlace> {
+impl<'r, BrandedPlace : IsBrandedPlace> GhostInitProof<BrandedPlace> {
     #[doc(alias = "new")]
     pub
     unsafe
-    fn assume_branded_place_init() -> Self {
+    fn branded_place_assume_init() -> Self {
         Self(PD)
     }
 }

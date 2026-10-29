@@ -14,7 +14,7 @@ fn indwell() {
     // let mut boxed;
     let init: OwnRef<'_, String>;
     {
-        let out: OutRef<'_, _, BrandedPlace<'_, _>> = uninit_value.as_out_ref();
+        let out: OutRef<'_, _, BrandedPlace<'_, _>> = uninit_value.as_out();
         let own: OwnRef<'_, _, BrandedPlace<'_, _>> = out.write("some value".into());
         // init = own.into_ghost_init().indwell(&mut _evil).unbrand();
         init = indwell!(uninit_value <- own).unbrand();

@@ -81,6 +81,18 @@ impl BrandedPlace<'_> {
     async fn with_new_async<R>(scope: impl AsyncFnOnce(BrandedPlace<'_>) -> R) -> R {
         scope(Self(PD)).await
     }
+
+    /// Same a [`Self::with_new()`], but for allowing specifying some `<Tint>`.
+    pub
+    fn with_new_tainted<Tint, R>(scope: impl FnOnce(BrandedPlace<'_, Tint>) -> R) -> R {
+        scope(BrandedPlace(PD))
+    }
+
+    /// Async-scope version of [`Self::with_new_tainted()`].
+    pub
+    async fn with_new_tainted_async<Tint, R>(scope: impl AsyncFnOnce(BrandedPlace<'_, Tint>) -> R) -> R {
+        scope(BrandedPlace(PD)).await
+    }
 }
 
 #[doc(hidden)] /** Not part of the public API */ pub

@@ -18,17 +18,12 @@ impl<'r, T : ?Sized, P : MaybeBrandedPlace> OutRef<'r, T, P> {
 }
 
 pub
-trait AsOutRef<T : ?Sized> {
-    fn as_out_ref(&mut self) -> OutRef<'_, T>;
-}
-
-pub
 trait AsManuallyDropMut {
     /// Cast the current `&mut` reference into a <code>\&mut [ManuallyDrop]\<T\></code> reference
-    /// so as to, notably, be able to call [`.as_out_ref()`] on it.
+    /// so as to, notably, be able to call [`.as_out()`] on it.
     ///
     /// Note that such a pattern is **prone to memory leaks**. And trying to `unsafe`ly manually
-    /// call [`ManuallyDrop::drop()`] or [`ManuallyDrop::take()`] on it before the [`.as_out_ref()`]
+    /// call [`ManuallyDrop::drop()`] or [`ManuallyDrop::take()`] on it before the [`.as_out()`]
     /// call will probably just result in a high risk of double-frees in case of unwinds (panics).
     ///
     /// Consider, instead, operating on the `T` *by value* to begin with; wrapping it, by
@@ -38,10 +33,10 @@ trait AsManuallyDropMut {
     /// [`ManuallyDrop`]: `MD`
     /// [`ManuallyDrop::drop()`]: `MD::drop()`
     /// [`ManuallyDrop::take()`]: `MD::take()`
-    /// [`.as_out_ref()`]: `AsOutRef::as_out_ref()`
+    /// [`.as_out()`]: `AsOut::as_out()`
     fn as_manually_drop_mut_leaky_and_unchecked<'r>(self: &'r mut Self) -> &'r mut MD<Self>
     where
-        &'r mut MD<Self> : AsOutRef<Self>,
+        &'r mut MD<Self> : AsOut<Self>,
     {
         unsafe {
             // Safety: `repr(transparent)` referee, same layout of the (potentially wide) reference,
@@ -52,27 +47,40 @@ trait AsManuallyDropMut {
 }
 impl<T : ?Sized> AsManuallyDropMut for T {}
 
+pub
+trait AsOut<T : ?Sized> {
+    fn as_out(&mut self) -> OutRef<'_, T>;
+}
+
 // Warning: this leaks memory!
-impl<T : Copy> AsOutRef<T> for T {
-    fn as_out_ref<'r>(self: &'r mut T) -> OutRef<'r, T> {
+impl<T : Copy> AsOut<T> for T {
+    fn as_out<'r>(self: &'r mut T) -> OutRef<'r, T> {
         unsafe {
             OutRef::from_raw(self.into())
         }
     }
 }
 
-impl<T : ?Sized> AsOutRef<T> for MD<T> {
-    fn as_out_ref(self: &mut MD<T>) -> OutRef<'_, T> {
+impl<T : ?Sized> AsOut<T> for MD<T> {
+    fn as_out(self: &mut MD<T>) -> OutRef<'_, T> {
         unsafe {
             mem::transmute(self)
         }
     }
 }
 
-impl<T : Sized> AsOutRef<T> for MU<T> {
-    fn as_out_ref(self: &mut MU<T>) -> OutRef<'_, T> {
+impl<T : Sized> AsOut<T> for MU<T> {
+    fn as_out(self: &mut MU<T>) -> OutRef<'_, T> {
         unsafe {
             OutRef::from_raw(ptr::NonNull::cast(self.into()))
+        }
+    }
+}
+
+impl<T : Sized> AsOut<[T]> for [MU<T>] {
+    fn as_out<'r>(self: &'r mut [MU<T>]) -> OutRef<'r, [T]> {
+        unsafe {
+            mem::transmute(self)
         }
     }
 }
@@ -80,8 +88,8 @@ impl<T : Sized> AsOutRef<T> for MU<T> {
 impl<'r, T : ?Sized> OutRef<'r, T, NoBrandedPlace> {
     #[doc(alias = "new")]
     pub
-    fn from_ref(r: &'r mut impl AsOutRef<T>) -> OutRef<'r, T, NoBrandedPlace> {
-        r.as_out_ref()
+    fn from_ref(r: &'r mut impl AsOut<T>) -> OutRef<'r, T, NoBrandedPlace> {
+        r.as_out()
     }
 
     pub
@@ -123,9 +131,65 @@ impl<'r, T : ?Sized, P : MaybeBrandedPlace> OutRef<'r, T, P> {
     fn from_raw_branded_unchecked(raw: ptr::NonNull<T>) -> OutRef<'r, T, P> {
         Self { raw, _phantom: PD, _owns_t : PD }
     }
+
+    pub
+    unsafe
+    fn as_uninit_mut<MaybeUninitT : ?Sized>(self: OutRef<'r, T, P>) -> &'r mut MaybeUninitT
+    where
+        Self : seal::AsUninitMut<'r, Uninit = MaybeUninitT>,
+    {
+        unsafe { seal::AsUninitMut::as_uninit_mut_impl(self) }
+    }
+}
+
+mod seal {
+    use super::*;
+
+    pub
+    trait AsUninitMut<'r> {
+        type Uninit : ?Sized;
+
+        unsafe
+        fn as_uninit_mut_impl(_: Self) -> &'r mut Self::Uninit;
+    }
+
+    impl<'r, T : Sized, P : MaybeBrandedPlace> AsUninitMut<'r> for OutRef<'r, T, P> {
+        type Uninit = MU<T>;
+
+        unsafe
+        fn as_uninit_mut_impl(this: Self) -> &'r mut MU<T> {
+            unsafe { this.raw.cast().as_mut() }
+        }
+    }
+
+    impl<'r, T : Sized, P : MaybeBrandedPlace> AsUninitMut<'r> for OutRef<'r, [T], P> {
+        type Uninit = [MU<T>];
+
+        unsafe
+        fn as_uninit_mut_impl(this: Self) -> &'r mut [MU<T>] {
+            let len = this.raw.len();
+            unsafe {
+                ::core::slice::from_raw_parts_mut(
+                    this.raw.as_ptr() as *mut T as *mut MU<T>,
+                    len,
+                )
+            }
+        }
+    }
 }
 
 impl<'r, T : ?Sized> OutRef<'r, T, NoBrandedPlace> {
+    pub
+    unsafe
+    fn branded_unchecked<BrandedPlace : IsBrandedPlace>(
+        self: OutRef<'r, T, NoBrandedPlace>,
+    ) -> OutRef<'r, T, BrandedPlace>
+    {
+        unsafe {
+            OutRef::from_raw_branded_unchecked(self.into_raw())
+        }
+    }
+
     pub
     fn branded<BrandedPlace : IsBrandedPlace>(
         self: OutRef<'r, T, NoBrandedPlace>,
@@ -133,7 +197,7 @@ impl<'r, T : ?Sized> OutRef<'r, T, NoBrandedPlace> {
     ) -> OutRef<'r, T, BrandedPlace>
     {
         unsafe {
-            OutRef::from_raw_branded_unchecked(self.into_raw())
+            Self::branded_unchecked(self)
         }
     }
 }
@@ -169,7 +233,7 @@ impl<T, BrandedPlace : IsBrandedPlace> BrandedUninit<T, BrandedPlace> {
     }
 
     pub
-    fn as_out_ref(self: &mut BrandedUninit<T, BrandedPlace>) -> OutRef<'_, T, BrandedPlace> {
+    fn as_out(self: &mut BrandedUninit<T, BrandedPlace>) -> OutRef<'_, T, BrandedPlace> {
         unsafe {
             OutRef::from_raw_branded_unchecked(ptr::NonNull::from(&mut self.value).cast())
         }

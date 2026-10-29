@@ -98,7 +98,7 @@ where
 macro_rules! box_emplace {( $try_ctor:expr $(,)? ) => (|| -> _ {
     branded_uninit!(let uninit);
     let mut b: Box<BrandedUninit<_, BrandedPlace<'_, _>>> = Box::new(uninit);
-    let out_uninit: OutRef<'_, _, BrandedPlace<'_, _>> = (&mut *b).as_out_ref();
+    let out_uninit: OutRef<'_, _, BrandedPlace<'_, _>> = (&mut *b).as_out();
     let own_uninit: OwnRef<'_, _, BrandedPlace<'_, _>> =
         InPlaceTryCtor::<_, BrandedPlace<'_, _>>::try_in_place_init(
             $try_ctor,
@@ -120,7 +120,7 @@ macro_rules! stack_emplace {(
         let it =
             InPlaceTryCtor::<_, BrandedPlace<'_, _>>::try_in_place_init(
                 $try_ctor,
-                uninit_in_stack.as_out_ref(),
+                uninit_in_stack.as_out(),
             )?
         ;
         indwell!(uninit_in_stack <- it)
@@ -136,7 +136,7 @@ pub
 fn demo_init2() -> Box<i32> {
     branded_uninit!(let x);
     let mut b = Box::new(x);
-    let b: Box<i32> = indwell!(b <- b.as_out_ref().write(42_i32));
+    let b: Box<i32> = indwell!(b <- b.as_out().write(42_i32));
     b
 }
 

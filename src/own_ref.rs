@@ -51,7 +51,7 @@ impl<'r, T : ?Sized, BrandedPlace : IsBrandedPlace> OwnRef<'r, T, BrandedPlace> 
     pub
     fn into_ghost_init(self: OwnRef<'r, T, BrandedPlace>) -> indwell::GhostInitProof<BrandedPlace> {
         unsafe {
-            indwell::GhostInitProof::assume_branded_place_init()
+            indwell::GhostInitProof::branded_place_assume_init()
         }
     }
 
