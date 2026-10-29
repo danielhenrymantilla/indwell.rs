@@ -36,6 +36,7 @@ dependencies = [
  "implied-bounds",
  "never-say-never",
  "rand",
+ "safe-manually-drop",
 ]
 
 [[package]]
@@ -142,6 +143,12 @@ name = "rand_core"
 version = "0.10.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "63b8176103e19a2643978565ca18b50549f6101881c443590420e4dc998a3c69"
+
+[[package]]
+name = "safe-manually-drop"
+version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4f23eadc3ebb5edb0de19c107a48fc1224f018d5dfc6b0761342cad28cace4bb"
 
 [[package]]
 name = "syn"

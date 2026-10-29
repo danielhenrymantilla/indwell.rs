@@ -6,6 +6,7 @@ edition = "2024"
 [dependencies]
 implied-bounds.version = "0.1.0"
 never-say-never.version = "6.6.666"
+safe-manually-drop.version = "0.1.2"
 
 [dependencies.proc_macros]
 package = "enroot-proc_macros"
