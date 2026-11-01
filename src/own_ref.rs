@@ -16,17 +16,25 @@ impl<'r, T : ?Sized, B : MaybeBrandedPlace> Drop for OwnRef<'r, T, B> {
 
 impl<'r, T : ?Sized, B : MaybeBrandedPlace> OwnRef<'r, T, B> {
     pub
-    fn deref_move(self: OwnRef<'r, T, B>) -> (T, &'r mut maybe_dropped::MaybeDropped<T>)
+    fn take(this: OwnRef<'r, T, B>) -> (T, &'r mut maybe_dropped::MaybeDropped<T>)
     where
         T : Sized,
     {
-        let raw = self.into_raw();
+        let raw = this.into_raw();
         unsafe {
             (
                 raw.read(),
                 raw.cast().as_mut(),
             )
         }
+    }
+
+    pub
+    fn deref_move(self: OwnRef<'r, T, B>) -> T
+    where
+        T : Sized,
+    {
+        OwnRef::take(self).0
     }
 
     pub
