@@ -203,14 +203,14 @@ impl<'r, T : ?Sized> OutRef<'r, T, NoBrandedPlace> {
 }
 
 unsafe
-impl<'r, T : ?Sized, BrandedPlace : IsBrandedPlace>
+impl<'r, T : ?Sized, BrandedPlace : IsBrandedPlace, BrandedPlace_ : IsBrandedPlace>
     indwell::UninitPlace<BrandedPlace>
 for
-    OutRef<'r, T, BrandedPlace>
+    OutRef<'r, T, BrandedPlace_>
 {
     unsafe
     fn assume_init(
-        self: OutRef<'r, T, BrandedPlace>,
+        self: OutRef<'r, T, BrandedPlace_>,
     ) -> OwnRef<'r, T, BrandedPlace>
     {
         unsafe {
@@ -241,32 +241,59 @@ impl<T, BrandedPlace : IsBrandedPlace> BrandedUninit<T, BrandedPlace> {
 }
 
 unsafe
-impl<'r, T : Sized, BrandedPlace : IsBrandedPlace>
+impl<'r, T : Sized, BrandedPlace : IsBrandedPlace, BrandedPlace_ : IsBrandedPlace>
     indwell::UninitPlace<BrandedPlace>
 for
-    &'r mut BrandedUninit<T, BrandedPlace>
+    &'r mut BrandedUninit<T, BrandedPlace_>
+where
+    BrandedPlace : utils::diagnostics::Is<EqualTo = BrandedPlace_>,
+    BrandedPlace_ : utils::diagnostics::Is<EqualTo = BrandedPlace>,
 {
     unsafe
     fn assume_init(
-        self: &'r mut BrandedUninit<T, BrandedPlace>,
+        self: &'r mut BrandedUninit<T, BrandedPlace_>,
     ) -> OwnRef<'r, T, BrandedPlace>
     {
         unsafe {
-            OwnRef::from_raw_branded_unchecked(ptr::NonNull::from(&mut self.value).cast())
+            indwell::UninitPlace::<BrandedPlace>::assume_init(
+                self.as_out(),
+            )
         }
     }
     type OwnedInit = OwnRef<'r, T, BrandedPlace>;
 }
 
 unsafe
-impl<T : Sized, BrandedPlace : IsBrandedPlace>
+impl<T : Sized, BrandedPlace : IsBrandedPlace, BrandedPlace_ : IsBrandedPlace>
     indwell::UninitPlace<BrandedPlace>
 for
-    Box<BrandedUninit<T, BrandedPlace>>
+    BrandedUninit<T, BrandedPlace_>
+where
+    BrandedPlace : utils::diagnostics::Is<EqualTo = BrandedPlace_>,
+    BrandedPlace_ : utils::diagnostics::Is<EqualTo = BrandedPlace>,
+{
+    unsafe
+    fn assume_init(self: BrandedUninit<T, BrandedPlace_>) -> T
+    {
+        unsafe {
+            self.value.assume_init()
+        }
+    }
+    type OwnedInit = T;
+}
+
+unsafe
+impl<T : Sized, BrandedPlace : IsBrandedPlace, BrandedPlace_ : IsBrandedPlace>
+    indwell::UninitPlace<BrandedPlace>
+for
+    Box<BrandedUninit<T, BrandedPlace_>>
+where
+    BrandedPlace : utils::diagnostics::Is<EqualTo = BrandedPlace_>,
+    BrandedPlace_ : utils::diagnostics::Is<EqualTo = BrandedPlace>,
 {
     unsafe
     fn assume_init(
-        self: Box<BrandedUninit<T, BrandedPlace>>,
+        self: Box<BrandedUninit<T, BrandedPlace_>>,
     ) -> Box<T>
     {
         unsafe {
