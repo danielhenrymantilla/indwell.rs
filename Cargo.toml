@@ -13,6 +13,10 @@ package = "enroot-proc_macros"
 path = "src/proc_macros"
 version = "=0.1.0"  # Keep in sync
 
-
 [dev-dependencies]
 rand.version = "0.10.3"
+
+[[example]]
+name = "array_unzip"
+path = "examples/array_unzip.rs"
+crate-type = ["lib", "cdylib"]
