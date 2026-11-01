@@ -1,4 +1,5 @@
 use ::never_say_never::Never;
+use ::std::ops::ControlFlow;
 use crate::{
     brand::hlist::SliceElem,
 };
@@ -272,3 +273,150 @@ macro_rules! generate_scoped_slice_emplacers {(
     }
 )}
 use generate_scoped_slice_emplacers;
+
+impl<'r, T, FullSlicePlace : IsBrandedPlace> OutRef<'r, [T], FullSlicePlace> {
+    pub
+    fn iter_out(
+        self: OutRef<'r, [T], FullSlicePlace>,
+    ) -> (
+            EmplacingIterable<'r, T, SliceElem<FullSlicePlace>>,
+            ControlFlow<
+                OwnRef<'r, [T], FullSlicePlace>,
+                OutRef<'r, T, SliceElem<FullSlicePlace>>,
+            >,
+        )
+    {
+        let mut iter = EmplacingIterable {
+            raw: self.raw,
+            num_indwelled: 0,
+            _brand: PD,
+        };
+        let mb_item = unsafe {
+            iter.next_unchecked()
+        };
+        (iter, mb_item)
+    }
+}
+
+pub
+struct EmplacingIterable<'r, T, SliceElemPlace : MaybeBrandedPlace> {
+    /// Morally, an `Aliased<&'r mut [MU<T>]>`.
+    raw: ptr::NonNull<[T]>,
+    /// Invariants:
+    ///
+    ///   - When `num_indwelled < raw.len()`,
+    ///
+    ///       - We `&own [T]` the `[0..num_indwelled]` range of `*raw`.
+    ///
+    ///       - The elem at `[num_indwelled]` is being `Out`-written to.
+    ///
+    ///   - Otherwise, upon witnessing this, [`Self::next_unchecked()`]
+    ///     has given the (full, and branded) `&own [T]` away.
+    ///
+    ///     We reset `num_indwelled` back to `0` to express this and restore the previous state.
+    ///
+    /// (Note: when `raw.len() == 0`, both states are squashed together.)
+    num_indwelled: usize,
+    _brand: PD<(&'r mut [MU<T>], SliceElemPlace)>,
+}
+
+impl<'r, T, SliceElemPlace : MaybeBrandedPlace>
+    Drop
+for
+    EmplacingIterable<'r, T, SliceElemPlace>
+{
+    fn drop(&mut self) {
+        unsafe {
+            // TODO: use `OwnRef::assume_owns()` once it supports `[T]`:
+            ptr::drop_in_place::<[T]>(
+                ptr::slice_from_raw_parts_mut(
+                    self.raw.as_ptr() as *mut T,
+                    self.num_indwelled,
+                ),
+            )
+        }
+    }
+}
+
+impl<'r, T, FullSlicePlace : IsBrandedPlace>
+    EmplacingIterable<'r, T, SliceElem<FullSlicePlace>>
+{
+    /// # Safety
+    ///
+    /// Must only be called when the previously yielded item was just initialized
+    /// (and not dropped). IOW, `0..num_indwelled` must be made of initialized, `&own`-able, `T`s.
+    ///
+    /// Two special mentions:
+    ///
+    ///   - it is also fine to call the very first time (`num_indwelled = 0`, and `0..0` is empty).
+    unsafe
+    fn next_unchecked(&mut self)
+      -> ControlFlow<
+            OwnRef<'r, [T], FullSlicePlace>,
+            OutRef<'r, T, SliceElem<FullSlicePlace>>,
+        >
+    {
+        let _in_range @ true = self.num_indwelled < self.raw.len() else {
+            // As per the safety invariant of this function, inductively, every single
+            // item in `*raw` has been initialized, one elem at a time.
+            //
+            //  1. "Take" the `&own` out us:
+            self.num_indwelled = 0; // Moved this over the drop logic of `*self`.
+            return ControlFlow::Break(unsafe {
+                //
+                // TODO: make `OwnRef::assume_owns()` handle `[T]`.
+                ::core::mem::transmute(self.raw)
+            });
+        };
+        ControlFlow::Continue(unsafe {
+            // Safety:
+            //
+            //   - The lifetime `'r` remains valid for writes as all this stems from an
+            //     `OutRef<'r, [T]>`.
+            //
+            //       - Non-trivially, `*self` does not alias this specific `raw[num_indwelled]`,
+            //         as our *possibly-concurrent* drop impl does not range that far.
+            //
+            //   - The brand is safe since the whole "convoluted" design of this API prevents
+            //     multiple such `OutRef`s *with equal brands* from co-existing.
+            //
+            //     This is a crucial thing lest unsoundness ensue:
+            //
+            //     ```rs
+            //     let [out_0, out_1] = [out_iter.next().unwrap(), out_iter.next().unwrap()];
+            //     let own_0 = out_0.write(…);
+            //     let own_1 = indwell!(out_1 <- own_0); // Uh-oh…
+            //     let _read_uninit = own_1.deref_move().0;
+            //     ```
+            //
+            //     Hence, at least, the requirement for a lending iterator. At which point a
+            //     "pipe-in-and-out" `.next()` API was similar, whilst also featuring *indwelling*.
+            ::core::mem::transmute(
+                (self.raw.as_ptr() as *mut T)
+                    .add(self.num_indwelled)
+            )
+        })
+    }
+
+    pub
+    fn next(
+        &mut self,
+        // We could have used `'r` here, but we're so confident in our brands we don't even need to.
+        //                       v
+        latest_was_init: OwnRef<'_, T, SliceElem<FullSlicePlace>>,
+    ) -> ControlFlow<
+            OwnRef<'r, [T], FullSlicePlace>,
+            OutRef<'r, T, SliceElem<FullSlicePlace>>,
+        >
+    {
+        self.num_indwelled += {
+            ::core::mem::forget(latest_was_init);
+            1
+        };
+        unsafe {
+            // SAFETY: if it returns `Err` there is no more "stuff" whence the caller
+            // could hope to produce a `latest_was_init`, let alone another `.next()` call.
+            self.next_unchecked()
+        }
+    }
+}
