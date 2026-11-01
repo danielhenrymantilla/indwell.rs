@@ -48,7 +48,9 @@ for
 {}
 
 pub
-struct Fields<T>(T);
+struct Fields<T>(
+    T,
+);
 
 impl<B : MaybeBrandedPlace>
     crate::brand::ImplMaybeBrand
@@ -63,7 +65,9 @@ for
 {}
 
 pub
-struct SliceElem<T>(T);
+struct SliceElem<T>(
+    T,
+);
 
 impl<B : MaybeBrandedPlace>
     crate::brand::ImplMaybeBrand
@@ -71,8 +75,31 @@ for
     SliceElem<B>
 {}
 
-impl<B : IsBrandedPlace>
-    IsBrandedPlace
+/// An un-implementation.
+impl<B : /* IsBrandedPlace */>
+    /* !*/IsBrandedPlace
 for
     SliceElem<B>
+where
+    for<'n> Self : diagnostics::DeliberatelyNotABrandedPlace,
 {}
+
+mod diagnostics {
+    #[diagnostic::on_unimplemented(
+        message = "`{Self}` is deliberately not deemed an `IsBrandedPlace`",
+
+        note = "\
+indeed, as the `.iter_out()` API handles out *concurrent, distinct* `OutRef`s \"branded\" with \
+`{Self}`, if `{Self}` were `IsBrandedPlace`, it would then be possible to unsoundly use one \
+initialized `OutRef` as proof of initialization/notarization/indwellment for the other one:
+
+    let mut iter = out_slice.iter_out();
+    let (a, b) = (iter.next().unwrap(), iter.next().unwrap());
+    indwell!(b <- a.write(some_value)); // Uh-oh…
+
+",
+    )]
+    #[expect(drop_bounds)]
+    pub
+    trait DeliberatelyNotABrandedPlace : Copy + Drop {}
+}
