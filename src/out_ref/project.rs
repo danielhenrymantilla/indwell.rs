@@ -1,7 +1,6 @@
 use ::never_say_never::Never;
-use ::std::ops::ControlFlow;
 use crate::{
-    brand::hlist::SliceElem,
+    brand::hlist::SliceElem, indwell::GhostInitProof, utils::diagnostics::Is,
 };
 
 use super::*;
@@ -278,145 +277,161 @@ impl<'r, T, FullSlicePlace : IsBrandedPlace> OutRef<'r, [T], FullSlicePlace> {
     pub
     fn iter_out(
         self: OutRef<'r, [T], FullSlicePlace>,
-    ) -> (
-            EmplacingIterable<'r, T, SliceElem<FullSlicePlace>>,
-            ControlFlow<
-                OwnRef<'r, [T], FullSlicePlace>,
-                OutRef<'r, T, SliceElem<FullSlicePlace>>,
-            >,
-        )
+    ) -> impl ExactSizeIterator<Item = OutRef<'r, T, SliceElem<FullSlicePlace>>>
+    where
+        T : 'r,
     {
-        let mut iter = EmplacingIterable {
-            raw: self.raw,
-            num_indwelled: 0,
-            _brand: PD,
-        };
-        let mb_item = unsafe {
-            iter.next_unchecked()
-        };
-        (iter, mb_item)
+        unsafe { self.as_uninit_mut() }.iter_mut().map(|uninit_mut: &mut MU<T>| unsafe {
+            OutRef::from_raw_branded_unchecked(ptr::NonNull::from(uninit_mut).cast())
+        })
     }
 }
 
 pub
-struct EmplacingIterable<'r, T, SliceElemPlace : MaybeBrandedPlace> {
-    /// Morally, an `Aliased<&'r mut [MU<T>]>`.
-    raw: ptr::NonNull<[T]>,
-    /// Invariants:
-    ///
-    ///   - When `num_indwelled < raw.len()`,
-    ///
-    ///       - We `&own [T]` the `[0..num_indwelled]` range of `*raw`.
-    ///
-    ///       - The elem at `[num_indwelled]` is being `Out`-written to.
-    ///
-    ///   - Otherwise, upon witnessing this, [`Self::next_unchecked()`]
-    ///     has given the (full, and branded) `&own [T]` away.
-    ///
-    ///     We reset `num_indwelled` back to `0` to express this and restore the previous state.
-    ///
-    /// (Note: when `raw.len() == 0`, both states are squashed together.)
+struct SoulCollector<'r, FullSlicePlace : IsBrandedPlace> {
     num_indwelled: usize,
-    _brand: PD<(&'r mut [MU<T>], SliceElemPlace)>,
+    _phantom: PD<OutRef<'r, (), SliceElem<FullSlicePlace>>>,
 }
 
-impl<'r, T, SliceElemPlace : MaybeBrandedPlace>
-    Drop
+impl<'r, FullSlicePlace : IsBrandedPlace>
+    Default
 for
-    EmplacingIterable<'r, T, SliceElemPlace>
+    SoulCollector<'r, FullSlicePlace>
 {
-    fn drop(&mut self) {
-        unsafe {
-            // TODO: use `OwnRef::assume_owns()` once it supports `[T]`:
-            ptr::drop_in_place::<[T]>(
-                ptr::slice_from_raw_parts_mut(
-                    self.raw.as_ptr() as *mut T,
-                    self.num_indwelled,
-                ),
-            )
+    fn default() -> SoulCollector<'r, FullSlicePlace> {
+        Self {
+            num_indwelled: 0,
+            _phantom: PD,
         }
     }
 }
 
 impl<'r, T, FullSlicePlace : IsBrandedPlace>
-    EmplacingIterable<'r, T, SliceElem<FullSlicePlace>>
+    Extend<OwnRef<'r, T, SliceElem<FullSlicePlace>>>
+for
+    SoulCollector<'r, FullSlicePlace>
 {
-    /// # Safety
-    ///
-    /// Must only be called when the previously yielded item was just initialized
-    /// (and not dropped). IOW, `0..num_indwelled` must be made of initialized, `&own`-able, `T`s.
-    ///
-    /// Two special mentions:
-    ///
-    ///   - it is also fine to call the very first time (`num_indwelled = 0`, and `0..0` is empty).
-    unsafe
-    fn next_unchecked(&mut self)
-      -> ControlFlow<
-            OwnRef<'r, [T], FullSlicePlace>,
-            OutRef<'r, T, SliceElem<FullSlicePlace>>,
-        >
+    fn extend<Iterable>(
+        self: &'_ mut SoulCollector<'r, FullSlicePlace>,
+        iterable: Iterable,
+    )
+    where
+        Iterable : IntoIterator<Item = OwnRef<'r, T, SliceElem<FullSlicePlace>>>,
     {
-        let _in_range @ true = self.num_indwelled < self.raw.len() else {
-            // As per the safety invariant of this function, inductively, every single
-            // item in `*raw` has been initialized, one elem at a time.
-            //
-            //  1. "Take" the `&own` out us:
-            self.num_indwelled = 0; // Moved this over the drop logic of `*self`.
-            return ControlFlow::Break(unsafe {
-                //
-                // TODO: make `OwnRef::assume_owns()` handle `[T]`.
-                ::core::mem::transmute(self.raw)
-            });
-        };
-        ControlFlow::Continue(unsafe {
-            // Safety:
-            //
-            //   - The lifetime `'r` remains valid for writes as all this stems from an
-            //     `OutRef<'r, [T]>`.
-            //
-            //       - Non-trivially, `*self` does not alias this specific `raw[num_indwelled]`,
-            //         as our *possibly-concurrent* drop impl does not range that far.
-            //
-            //   - The brand is safe since the whole "convoluted" design of this API prevents
-            //     multiple such `OutRef`s *with equal brands* from co-existing.
-            //
-            //     This is a crucial thing lest unsoundness ensue:
-            //
-            //     ```rs
-            //     let [out_0, out_1] = [out_iter.next().unwrap(), out_iter.next().unwrap()];
-            //     let own_0 = out_0.write(…);
-            //     let own_1 = indwell!(out_1 <- own_0); // Uh-oh…
-            //     let _read_uninit = own_1.deref_move().0;
-            //     ```
-            //
-            //     Hence, at least, the requirement for a lending iterator. At which point a
-            //     "pipe-in-and-out" `.next()` API was similar, whilst also featuring *indwelling*.
-            ::core::mem::transmute(
-                (self.raw.as_ptr() as *mut T)
-                    .add(self.num_indwelled)
-            )
-        })
+        // We use normal `+` rather than, _e.g._, `saturating_add` or whatnot, to mimic the
+        // semantics of `Iterator::count()` in and of itself (wrapping or panicking depending on
+        // `overflow-checks`).
+        self.num_indwelled += iterable.into_iter().map(::core::mem::forget).count();
     }
+}
 
-    pub
-    fn next(
-        &mut self,
-        // We could have used `'r` here, but we're so confident in our brands we don't even need to.
-        //                       v
-        latest_was_init: OwnRef<'_, T, SliceElem<FullSlicePlace>>,
-    ) -> ControlFlow<
-            OwnRef<'r, [T], FullSlicePlace>,
-            OutRef<'r, T, SliceElem<FullSlicePlace>>,
-        >
+impl<'r, T, FullSlicePlace : IsBrandedPlace>
+    FromIterator<OwnRef<'r, T, SliceElem<FullSlicePlace>>>
+for
+    SoulCollector<'r, FullSlicePlace>
+{
+    fn from_iter<Iterable>(iterable: Iterable) -> SoulCollector<'r, FullSlicePlace>
+    where
+        Iterable : IntoIterator<Item = OwnRef<'r, T, SliceElem<FullSlicePlace>>>,
     {
-        self.num_indwelled += {
-            ::core::mem::forget(latest_was_init);
-            1
-        };
+        let mut ret = Self::default();
+        ret.extend(iterable);
+        ret
+    }
+}
+
+impl<'r, FullSlicePlace : IsBrandedPlace> SoulCollector<'r, FullSlicePlace> {
+    pub
+    fn into_ghost_init(self) -> SoulCollector<'static, FullSlicePlace> {
         unsafe {
-            // SAFETY: if it returns `Err` there is no more "stuff" whence the caller
-            // could hope to produce a `latest_was_init`, let alone another `.next()` call.
-            self.next_unchecked()
+            ::core::mem::transmute(self)
         }
+    }
+}
+
+#[derive(Debug)]
+pub
+struct MissingSouls;
+
+impl<FullSlicePlace : IsBrandedPlace> SoulCollector<'static, FullSlicePlace> {
+    pub
+    unsafe
+    fn indwell<'r, FullSlicePlace_ : IsBrandedPlace, Husk : UninitSlice<FullSlicePlace_>>(
+        self,
+        husk: Husk,
+    ) -> Result<
+            Husk::OwnedInit,
+            MissingSouls,
+        >
+    where
+        FullSlicePlace : Is<EqualTo = FullSlicePlace_>,
+    {
+        if self.num_indwelled < husk.len() {
+            Err(MissingSouls)
+        } else {
+            Ok(unsafe {
+                GhostInitProof::branded_place_assume_init().indwell(husk)
+            })
+        }
+    }
+}
+
+pub
+trait UninitSlice<FullSlicePlace : IsBrandedPlace>
+:
+    indwell::UninitPlace<FullSlicePlace> +
+{
+    fn len(&self) -> usize;
+}
+
+impl<'r, T, FullSlicePlace : IsBrandedPlace>
+    UninitSlice<FullSlicePlace>
+for
+    OutRef<'r, [T], FullSlicePlace>
+{
+    fn len(&self) -> usize {
+        self.raw.len()
+    }
+}
+impl<'r, T, FullSlicePlace : IsBrandedPlace, const N: usize>
+    UninitSlice<FullSlicePlace>
+for
+    OutRef<'r, [T; N], FullSlicePlace>
+{
+    fn len(&self) -> usize {
+        N
+    }
+}
+
+impl<'r, T, FullSlicePlace : IsBrandedPlace, const N: usize>
+    UninitSlice<FullSlicePlace>
+for
+    &'r mut BrandedUninit<[T; N], FullSlicePlace>
+{
+    fn len(&self) -> usize {
+        N
+    }
+}
+
+impl<T, FullSlicePlace : IsBrandedPlace, FullSlicePlace_ : IsBrandedPlace, const N: usize>
+    UninitSlice<FullSlicePlace>
+for
+    BrandedUninit<[T; N], FullSlicePlace_>
+where
+    FullSlicePlace: Is<EqualTo = FullSlicePlace_>,
+    FullSlicePlace_: Is<EqualTo = FullSlicePlace>,
+{
+    fn len(&self) -> usize {
+        N
+    }
+}
+
+impl<T, FullSlicePlace : IsBrandedPlace, const N: usize>
+    UninitSlice<FullSlicePlace>
+for
+    Box<BrandedUninit<[T; N], FullSlicePlace>>
+{
+    fn len(&self) -> usize {
+        N
     }
 }

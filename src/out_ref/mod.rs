@@ -349,6 +349,6 @@ macro_rules! ඞbranded_uninit {(
 #[doc(inline)]
 pub use ඞbranded_uninit as branded_uninit;
 
-pub use project::{derive_marker, OutRefProject};
+pub use project::{derive_marker, OutRefProject, SoulCollector};
 pub(crate)
 mod project;
