@@ -50,6 +50,7 @@ impl<'r, T : ?Sized, BrandedPlace : IsBrandedPlace> OwnRef<'r, T, BrandedPlace> 
     #[must_use = "this is leaking memory unless you call `.indwell()`"]
     pub
     fn into_ghost_init(self: OwnRef<'r, T, BrandedPlace>) -> indwell::GhostInitProof<BrandedPlace> {
+        ::core::mem::forget(self);
         unsafe {
             indwell::GhostInitProof::branded_place_assume_init()
         }
