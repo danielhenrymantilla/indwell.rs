@@ -69,10 +69,29 @@ trait UninitPlace<BrandedPlace : IsBrandedPlace> : Sized {
 
 #[doc(hidden)] /* Not part of the public API */ #[macro_export]
 macro_rules! ඞindwell {(
-    $uninit_place:ident <- $own_ref:expr $(,)?
+    $($(@if $mut:tt)?
+        &mut
+    )? $uninit_place:ident <- $own_ref:expr $(,)?
 ) => (
     match $own_ref.into_ghost_init() {
-        ghost_init => unsafe { ghost_init.indwell($uninit_place) },
+        ghost_init => unsafe {
+            // "Here be dragons" region: we must be careful not to re-access the original
+            // place in a way that deinits it (_e.g._, imagine doing:
+            // `{ drop(own_ref_orig.write(another_value)); own_ref_orig }`).
+            // Hence the `:ident` restriction on the `$uninit_place` macro arg.
+            // Even the `&mut` and whatnot could be dangerous w.r.t. `DerefMut` coërcions
+            // and arbitrary code.
+            // As of the current implementations of `indwell`, that arg is generic, preventing
+            // coërcions.
+            // But the lack of a properly qualified trait invocation does not guarantee this
+            // going forward: this should be made more robust.
+            let uninit_place =
+                $($(if $mut)?
+                    &mut
+                )? $uninit_place
+            ;
+            ghost_init.indwell(uninit_place)
+        },
     }
 )}
 pub use ඞindwell as indwell;
