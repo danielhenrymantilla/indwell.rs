@@ -203,7 +203,7 @@ impl<'r, T : ?Sized> OutRef<'r, T, NoBrandedPlace> {
 }
 
 unsafe
-impl<'r, T : Sized, BrandedPlace : IsBrandedPlace>
+impl<'r, T : ?Sized, BrandedPlace : IsBrandedPlace>
     indwell::UninitPlace<BrandedPlace>
 for
     OutRef<'r, T, BrandedPlace>

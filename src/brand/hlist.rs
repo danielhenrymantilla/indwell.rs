@@ -47,7 +47,8 @@ for
     HList![Hd]
 {}
 
-pub struct Fields<T>(T);
+pub
+struct Fields<T>(T);
 
 impl<B : MaybeBrandedPlace>
     crate::brand::ImplMaybeBrand
@@ -59,4 +60,19 @@ impl<B : IsBrandedPlace>
     IsBrandedPlace
 for
     Fields<B>
+{}
+
+pub
+struct SliceElem<T>(T);
+
+impl<B : MaybeBrandedPlace>
+    crate::brand::ImplMaybeBrand
+for
+    SliceElem<B>
+{}
+
+impl<B : IsBrandedPlace>
+    IsBrandedPlace
+for
+    SliceElem<B>
 {}

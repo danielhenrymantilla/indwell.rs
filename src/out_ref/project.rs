@@ -1,4 +1,7 @@
-use never_say_never::Never;
+use ::never_say_never::Never;
+use crate::{
+    brand::hlist::SliceElem,
+};
 
 use super::*;
 
@@ -81,7 +84,7 @@ mod more_diagnostics_tricks {
             Self::NEVER
         }
     }
-    impl<'brand, T, Place> OutRefProject<BrandedPlace<'brand, Place>> for T {}
+    impl<'id, T, Place> OutRefProject<BrandedPlace<'id, Place>> for T {}
 
     mod derive_marker {
         #[diagnostic::on_unimplemented(
@@ -185,9 +188,9 @@ macro_rules! generate_scoped_slice_emplacers {(
         $($async)?
         fn $emplace_each_with_mb_async (
             self: OutRef<'r, [T], P>,
-            mut emplace_one: impl for<'s, 'brand> $MbAsyncFnMut(
-                OutRef<'s, T, BrandedPlace<'brand, P>>,
-            ) -> OwnRef<'s, T, BrandedPlace<'brand, P>>,
+            mut emplace_one: impl for<'s, 'id> $MbAsyncFnMut(
+                OutRef<'s, T, BrandedPlace<'id, SliceElem<P>>>,
+            ) -> OwnRef<'s, T, BrandedPlace<'id, SliceElem<P>>>,
         ) -> OwnRef<'r, [T], P>
         where
             T : 'r,
@@ -205,10 +208,10 @@ macro_rules! generate_scoped_slice_emplacers {(
         $($async)?
         fn $try_emplace_each_with_mb_async<E>(
             self: OutRef<'r, [T], P>,
-            mut try_emplace_one: impl for<'s, 'brand> $MbAsyncFnMut(
-                OutRef<'s, T, BrandedPlace<'brand, P>>,
+            mut try_emplace_one: impl for<'s, 'id> $MbAsyncFnMut(
+                OutRef<'s, T, BrandedPlace<'id, SliceElem<P>>>,
             ) -> Result<
-                    OwnRef<'s, T, BrandedPlace<'brand, P>>,
+                    OwnRef<'s, T, BrandedPlace<'id, SliceElem<P>>>,
                     E,
                 >
             ,
@@ -227,6 +230,7 @@ macro_rules! generate_scoped_slice_emplacers {(
                     num_indwelled: 0,
                 },
                 drop: |State { uninit_slice_mut, num_indwelled }| unsafe {
+                    // TODO: use `OwnRef::assume_owns()` once it handles slices.
                     ::core::ptr::drop_in_place::<[T]>(
                         ::core::ptr::slice_from_raw_parts_mut(
                             uninit_slice_mut.as_mut_ptr().cast(),
@@ -239,10 +243,10 @@ macro_rules! generate_scoped_slice_emplacers {(
             let g = &mut *guard;
             for uninit_mut in &mut *g.uninit_slice_mut {
                 BrandedPlace::$with_new_tainted_mb_async($($async)? |bruh| -> Result<_, E> {
-                    let out_ref: OutRef<'_, T, BrandedPlace<'_, P>> =
+                    let out_ref: OutRef<'_, T, BrandedPlace<'_, SliceElem<P>>> =
                         uninit_mut.as_out().branded(bruh)
                     ;
-                    let own_ref: OwnRef<'_, T, BrandedPlace<'_, P>> =
+                    let own_ref: OwnRef<'_, T, BrandedPlace<'_, SliceElem<P>>> =
                         try_emplace_one(out_ref)
                             $(.$await)?
                             ?
