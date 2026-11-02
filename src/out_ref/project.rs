@@ -1,6 +1,9 @@
-use ::never_say_never::Never;
+use ::never_say_never::{
+    Never,
+};
 use crate::{
-    brand::hlist::SliceElem, indwell::GhostInitProof, utils::diagnostics::Is,
+    brand::hlist::SliceElem,
+    indwell::GhostInitProof,
 };
 
 use super::*;
@@ -277,7 +280,9 @@ impl<'r, T, FullSlicePlace : IsBrandedPlace> OutRef<'r, [T], FullSlicePlace> {
     pub
     fn iter_out(
         self: OutRef<'r, [T], FullSlicePlace>,
-    ) -> impl ExactSizeIterator<Item = OutRef<'r, T, SliceElem<FullSlicePlace>>>
+    ) -> impl Iterator<Item = OutRef<'r, T, SliceElem<FullSlicePlace>>>
+            + ExactSizeIterator
+            + DoubleEndedIterator
     where
         T : 'r,
     {
@@ -288,17 +293,17 @@ impl<'r, T, FullSlicePlace : IsBrandedPlace> OutRef<'r, [T], FullSlicePlace> {
 }
 
 pub
-struct SoulCollector<'r, FullSlicePlace : IsBrandedPlace> {
+struct SoulCollector<'r, T, FullSlicePlace : IsBrandedPlace> {
     num_indwelled: usize,
-    _phantom: PD<OutRef<'r, (), SliceElem<FullSlicePlace>>>,
+    _phantom: PD<OwnRef<'r, T, SliceElem<FullSlicePlace>>>,
 }
 
-impl<'r, FullSlicePlace : IsBrandedPlace>
+impl<'r, T, FullSlicePlace : IsBrandedPlace>
     Default
 for
-    SoulCollector<'r, FullSlicePlace>
+    SoulCollector<'r, T, FullSlicePlace>
 {
-    fn default() -> SoulCollector<'r, FullSlicePlace> {
+    fn default() -> SoulCollector<'r, T, FullSlicePlace> {
         Self {
             num_indwelled: 0,
             _phantom: PD,
@@ -309,10 +314,10 @@ for
 impl<'r, T, FullSlicePlace : IsBrandedPlace>
     Extend<OwnRef<'r, T, SliceElem<FullSlicePlace>>>
 for
-    SoulCollector<'r, FullSlicePlace>
+    SoulCollector<'r, T, FullSlicePlace>
 {
     fn extend<Iterable>(
-        self: &'_ mut SoulCollector<'r, FullSlicePlace>,
+        self: &'_ mut SoulCollector<'r, T, FullSlicePlace>,
         iterable: Iterable,
     )
     where
@@ -328,9 +333,9 @@ for
 impl<'r, T, FullSlicePlace : IsBrandedPlace>
     FromIterator<OwnRef<'r, T, SliceElem<FullSlicePlace>>>
 for
-    SoulCollector<'r, FullSlicePlace>
+    SoulCollector<'r, T, FullSlicePlace>
 {
-    fn from_iter<Iterable>(iterable: Iterable) -> SoulCollector<'r, FullSlicePlace>
+    fn from_iter<Iterable>(iterable: Iterable) -> SoulCollector<'r, T, FullSlicePlace>
     where
         Iterable : IntoIterator<Item = OwnRef<'r, T, SliceElem<FullSlicePlace>>>,
     {
@@ -340,12 +345,43 @@ for
     }
 }
 
-impl<'r, FullSlicePlace : IsBrandedPlace> SoulCollector<'r, FullSlicePlace> {
+impl<'r, T, FullSlicePlace : IsBrandedPlace> SoulCollector<'r, T, FullSlicePlace> {
     pub
-    fn into_ghost_init(self) -> SoulCollector<'static, FullSlicePlace> {
+    fn into_ghost_init(self) -> SoulCollector<'static, T, FullSlicePlace> {
         unsafe {
             ::core::mem::transmute(self)
         }
+    }
+}
+
+impl<T, FullSlicePlace : IsBrandedPlace>
+    Drop
+for
+    SoulCollector<'_, T, FullSlicePlace>
+{
+    fn drop(&mut self) {
+        // static/compile-time-elidable branch.
+        let _drop_thus_leak_does_matter @ true = ::core::mem::needs_drop::<T>() else {
+            return
+        };
+        // Cheap runtime branch.
+        let Some(leak_count) = ::core::num::NonZero::new(self.num_indwelled) else {
+            // OK, nothing being leaked.
+            return;
+        };
+        // Potentially more expensive-at-runtime branch.
+        let _not_already_panicking @ true = ::std::thread::panicking().not() else {
+            // "leak amplification" in the unwind path (otherwise we'd outright abort,
+            // which seems unnecessary and thus excessive).
+            return
+        };
+        let type_name = ::core::any::type_name::<T>();
+        panic! {"\
+            Missing `indwell!()` on a `SoulCollector`: this would leak memory! \
+            ({leak_count} instance(s) of type `{type_name}`.) \
+            If you are truly fine with this, work with a `ManuallyDrop<SoulCollector>` \
+            to convey this (eg., you can `.extend()` a `default()`-constructed one).\
+        "}
     }
 }
 
@@ -353,7 +389,7 @@ impl<'r, FullSlicePlace : IsBrandedPlace> SoulCollector<'r, FullSlicePlace> {
 pub
 struct MissingSouls;
 
-impl<FullSlicePlace : IsBrandedPlace> SoulCollector<'static, FullSlicePlace> {
+impl<T, FullSlicePlace : IsBrandedPlace> SoulCollector<'static, T, FullSlicePlace> {
     pub
     unsafe
     fn indwell<'r, FullSlicePlace_ : IsBrandedPlace, Husk : UninitSlice<FullSlicePlace_>>(
@@ -364,9 +400,10 @@ impl<FullSlicePlace : IsBrandedPlace> SoulCollector<'static, FullSlicePlace> {
             MissingSouls,
         >
     where
-        FullSlicePlace : Is<EqualTo = FullSlicePlace_>,
+        FullSlicePlace : utils::diagnostics::Is<EqualTo = FullSlicePlace_>,
     {
-        if self.num_indwelled < husk.len() {
+        let this = MD::new(self);
+        if this.num_indwelled < husk.indwell_count() {
             Err(MissingSouls)
         } else {
             Ok(unsafe {
@@ -377,61 +414,73 @@ impl<FullSlicePlace : IsBrandedPlace> SoulCollector<'static, FullSlicePlace> {
 }
 
 pub
+unsafe
 trait UninitSlice<FullSlicePlace : IsBrandedPlace>
 :
     indwell::UninitPlace<FullSlicePlace> +
 {
-    fn len(&self) -> usize;
+    fn indwell_count(&self) -> usize;
 }
 
+unsafe
 impl<'r, T, FullSlicePlace : IsBrandedPlace>
     UninitSlice<FullSlicePlace>
 for
     OutRef<'r, [T], FullSlicePlace>
 {
-    fn len(&self) -> usize {
+    fn indwell_count(&self) -> usize {
         self.raw.len()
     }
 }
+unsafe
 impl<'r, T, FullSlicePlace : IsBrandedPlace, const N: usize>
     UninitSlice<FullSlicePlace>
 for
     OutRef<'r, [T; N], FullSlicePlace>
 {
-    fn len(&self) -> usize {
+    fn indwell_count(&self) -> usize {
         N
     }
 }
 
-impl<'r, T, FullSlicePlace : IsBrandedPlace, const N: usize>
+unsafe
+impl<'r, T, FullSlicePlace : IsBrandedPlace, FullSlicePlace_ : IsBrandedPlace, const N: usize>
     UninitSlice<FullSlicePlace>
 for
-    &'r mut BrandedUninit<[T; N], FullSlicePlace>
+    &'r mut BrandedUninit<[T; N], FullSlicePlace_>
+where
+    FullSlicePlace : utils::diagnostics::Is<EqualTo = FullSlicePlace_>,
+    FullSlicePlace_ : utils::diagnostics::Is<EqualTo = FullSlicePlace>,
 {
-    fn len(&self) -> usize {
+    fn indwell_count(&self) -> usize {
         N
     }
 }
 
+unsafe
 impl<T, FullSlicePlace : IsBrandedPlace, FullSlicePlace_ : IsBrandedPlace, const N: usize>
     UninitSlice<FullSlicePlace>
 for
     BrandedUninit<[T; N], FullSlicePlace_>
 where
-    FullSlicePlace: Is<EqualTo = FullSlicePlace_>,
-    FullSlicePlace_: Is<EqualTo = FullSlicePlace>,
+    FullSlicePlace : utils::diagnostics::Is<EqualTo = FullSlicePlace_>,
+    FullSlicePlace_ : utils::diagnostics::Is<EqualTo = FullSlicePlace>,
 {
-    fn len(&self) -> usize {
+    fn indwell_count(&self) -> usize {
         N
     }
 }
 
-impl<T, FullSlicePlace : IsBrandedPlace, const N: usize>
+unsafe
+impl<T, FullSlicePlace : IsBrandedPlace, FullSlicePlace_ : IsBrandedPlace, const N: usize>
     UninitSlice<FullSlicePlace>
 for
-    Box<BrandedUninit<[T; N], FullSlicePlace>>
+    Box<BrandedUninit<[T; N], FullSlicePlace_>>
+where
+    FullSlicePlace : utils::diagnostics::Is<EqualTo = FullSlicePlace_>,
+    FullSlicePlace_ : utils::diagnostics::Is<EqualTo = FullSlicePlace>,
 {
-    fn len(&self) -> usize {
+    fn indwell_count(&self) -> usize {
         N
     }
 }

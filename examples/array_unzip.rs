@@ -1,3 +1,5 @@
+#![feature(maybe_uninit_array_assume_init)]
+
 use ::enroot::prelude::*;
 
 pub
@@ -18,7 +20,7 @@ fn unzip<A, B, const N: usize>(array: [(A, B); N]) -> ([A; N], [B; N]) {
                 out_a.write(a),
                 out_b.write(b),
             ))
-            .collect::<(SoulCollector<_>, SoulCollector<_>)>()
+            .collect::<(SoulCollector<_, _>, SoulCollector<_, _>)>()
     ;
     (
         // Requires matching `array_a` brand.
@@ -30,7 +32,8 @@ fn unzip<A, B, const N: usize>(array: [(A, B); N]) -> ([A; N], [B; N]) {
 const M: usize = 2;
 
 #[unsafe(no_mangle)]
-pub fn unzip_(
+pub
+fn unzip_(
     arr: [(String, i32); M],
 ) -> ([String; M], [i32; M])
 {
@@ -38,27 +41,50 @@ pub fn unzip_(
 }
 
 #[test]
-fn foo() {
+fn sanity_check() {
     let arr = ::core::array::from_fn(|i| {
         (format!("{i}"), i as _)
     });
     unzip_(arr);
 }
 
-#[unsafe(no_mangle)]
-fn my_init() -> [i32; 100] {
-    branded_uninit!(let array: [i32; 100]);
-    let array = &mut array;
-    indwell!(array <- unsize!(array.as_out() => [_]).emplace_each_with(|out| out.write(42)))
-        .deref_move()
+fn unzip2<T, U, const N: usize>(array: [(T, U); N]) -> ([T; N], [U; N]) {
+    use ::core::mem::MaybeUninit as MU;
+    let (mut a, mut b) = ([const { MU::uninit() }; N], [const { MU::uninit() }; N]);
+    let n =
+        array
+            .into_iter()
+            .zip(
+                Iterator::zip(
+                    a.iter_mut(),
+                    b.iter_mut(),
+                )
+            )
+            .map(|((a, b), (out_a, out_b))| {
+                out_a.write(a);
+                out_b.write(b);
+            })
+            .count()
+    ;
+    assert_eq!(n, N);
+    unsafe {
+        (
+            MU::array_assume_init(a),
+            MU::array_assume_init(b),
+        )
+    }
 }
 
 #[unsafe(no_mangle)]
-fn my_init2() -> [i32; 100] {
-    [42; 100]
+pub
+fn unzip2_(
+    arr: [(String, i32); M],
+) -> ([String; M], [i32; M])
+{
+    unzip2(arr)
 }
 
-fn unzip2<T, U, const N: usize>(arr: [(T, U); N]) -> ([T; N], [U; N]) {
+fn unzip3<T, U, const N: usize>(arr: [(T, U); N]) -> ([T; N], [U; N]) {
     let arr = ::core::mem::ManuallyDrop::new(arr);
     (
         std::array::from_fn(|i| unsafe { (&raw const arr[i].0).read() }),
@@ -67,9 +93,10 @@ fn unzip2<T, U, const N: usize>(arr: [(T, U); N]) -> ([T; N], [U; N]) {
 }
 
 #[unsafe(no_mangle)]
-pub fn unzip2_(
+pub
+fn unzip3_(
     arr: [(String, i32); M],
 ) -> ([String; M], [i32; M])
 {
-    unzip2(arr)
+    unzip3(arr)
 }
