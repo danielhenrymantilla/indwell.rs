@@ -82,6 +82,23 @@ impl<'r, T : ?Sized> OwnRef<'r, T, NoBrandedPlace> {
 
     pub
     unsafe
+    fn assume_owns_assumed_init<MuT : ?Sized>(r: &'r mut MuT)
+      -> OwnRef<'r, T, NoBrandedPlace>
+    where
+        MuT : UnsizedUninit<Init = T>,
+        T : UnsizedInit<Uninit = MuT>,
+    {
+        unsafe {
+            Self::from_raw(
+                ptr::NonNull::from(
+                    MuT::assume_init_mut(r),
+                )
+            )
+        }
+    }
+
+    pub
+    unsafe
     fn from_raw(raw: ptr::NonNull<T>) -> OwnRef<'r, T, NoBrandedPlace> {
         unsafe { Self::from_raw_branded_unchecked(raw) }
     }
@@ -97,5 +114,29 @@ impl<'r, T : ?Sized, B : MaybeBrandedPlace> ::core::ops::Deref for OwnRef<'r, T,
 impl<'r, T : ?Sized, B : MaybeBrandedPlace> ::core::ops::DerefMut for OwnRef<'r, T, B> {
     fn deref_mut(&mut self) -> &mut T {
         unsafe { self.raw.as_mut() }
+    }
+}
+
+impl<'r, T : ?Sized> OwnRef<'r, T, NoBrandedPlace> {
+    pub
+    unsafe
+    fn branded_unchecked<BrandedPlace : IsBrandedPlace>(
+        self: OwnRef<'r, T, NoBrandedPlace>,
+    ) -> OwnRef<'r, T, BrandedPlace>
+    {
+        unsafe {
+            OwnRef::from_raw_branded_unchecked(self.into_raw())
+        }
+    }
+
+    pub
+    fn branded<BrandedPlace : IsBrandedPlace>(
+        self: OwnRef<'r, T, NoBrandedPlace>,
+        _witnessed: BrandedPlace,
+    ) -> OwnRef<'r, T, BrandedPlace>
+    {
+        unsafe {
+            Self::branded_unchecked(self)
+        }
     }
 }

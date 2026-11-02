@@ -122,13 +122,9 @@ macro_rules! generate_scoped_slice_emplacers {(
                     num_indwelled: 0,
                 },
                 drop: |State { uninit_slice_mut, num_indwelled }| unsafe {
-                    // TODO: use `OwnRef::assume_owns()` once it handles slices.
-                    ::core::ptr::drop_in_place::<[T]>(
-                        ::core::ptr::slice_from_raw_parts_mut(
-                            uninit_slice_mut.as_mut_ptr().cast(),
-                            num_indwelled,
-                        ),
-                    );
+                    drop(OwnRef::assume_owns_assumed_init(
+                        &mut uninit_slice_mut[..num_indwelled]
+                    ));
                 },
             }.armed();
 
