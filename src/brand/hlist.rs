@@ -81,6 +81,7 @@ impl<B : /* IsBrandedPlace */>
 for
     SliceElem<B>
 where
+    Self : crate::brand::MaybeBrandedPlace,
     for<'n> Self : diagnostics::DeliberatelyNotABrandedPlace,
 {}
 
