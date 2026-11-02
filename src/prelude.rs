@@ -18,7 +18,7 @@ pub use crate::{
         OutRef,
         OutRefProject,
         project::more_diagnostics_tricks::OutRefProject as _,
-        SoulCollector,
+        slice::SoulCollector,
     },
     unsize::unsize,
 };
