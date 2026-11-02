@@ -221,14 +221,17 @@ for
 }
 
 pub
-struct BrandedUninit<T, BrandedPlace : IsBrandedPlace> {
+struct BrandedUninit<T, BrandedPlace : MaybeBrandedPlace> {
     value: MU<T>,
     _brand: PD<fn() -> BrandedPlace>,
 }
 
-impl<T, BrandedPlace : IsBrandedPlace> BrandedUninit<T, BrandedPlace> {
+impl<T, BrandedPlace : MaybeBrandedPlace> BrandedUninit<T, BrandedPlace> {
     pub
-    fn new_uninit(_branded_place: BrandedPlace) -> BrandedUninit<T, BrandedPlace> {
+    fn new_uninit(_branded_place: BrandedPlace) -> BrandedUninit<T, BrandedPlace>
+    where
+        BrandedPlace : IsBrandedPlace,
+    {
         Self { value: MU::uninit(), _brand: PD }
     }
 

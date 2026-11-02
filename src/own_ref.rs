@@ -14,9 +14,9 @@ impl<'r, T : ?Sized, B : MaybeBrandedPlace> Drop for OwnRef<'r, T, B> {
     }
 }
 
-impl<'r, T : ?Sized, B : MaybeBrandedPlace> OwnRef<'r, T, B> {
+impl<'r, T : ?Sized, P : MaybeBrandedPlace> OwnRef<'r, T, P> {
     pub
-    fn take(this: OwnRef<'r, T, B>) -> (T, &'r mut maybe_dropped::MaybeDropped<T>)
+    fn take(this: OwnRef<'r, T, P>) -> (T, &'r mut maybe_dropped::MaybeDropped<T, P>)
     where
         T : Sized,
     {
@@ -30,7 +30,7 @@ impl<'r, T : ?Sized, B : MaybeBrandedPlace> OwnRef<'r, T, B> {
     }
 
     pub
-    fn deref_move(self: OwnRef<'r, T, B>) -> T
+    fn deref_move(self: OwnRef<'r, T, P>) -> T
     where
         T : Sized,
     {
@@ -38,13 +38,13 @@ impl<'r, T : ?Sized, B : MaybeBrandedPlace> OwnRef<'r, T, B> {
     }
 
     pub
-    fn into_raw(self: OwnRef<'r, T, B>) -> ptr::NonNull<T> {
+    fn into_raw(self: OwnRef<'r, T, P>) -> ptr::NonNull<T> {
         MD::new(self).raw
     }
 
     pub
     unsafe
-    fn from_raw_branded_unchecked(raw: ptr::NonNull<T>) -> OwnRef<'r, T, B> {
+    fn from_raw_branded_unchecked(raw: ptr::NonNull<T>) -> OwnRef<'r, T, P> {
         Self { raw, _phantom: PD, _owns_t: PD }
     }
 
