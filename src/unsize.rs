@@ -40,7 +40,7 @@ trait Unsize<Dst : Pointer> : Pointer {
 }
 
 #[doc(hidden)] /* Not part of the public API */ #[macro_export]
-macro_rules! ඞunsize {( $wrapped_ptr:expr $(=> $T:ty)? $(,)? ) => ({
+macro_rules! ඞunsize {( $wrapped_ptr:expr $(,)? ) => ({
     let infer_ty = $crate::unsize::PhantomInference;
     if let ::core::option::Option::Some(never) = ::core::option::Option::None {
         infer_ty.conjure(never)
@@ -48,7 +48,7 @@ macro_rules! ඞunsize {( $wrapped_ptr:expr $(=> $T:ty)? $(,)? ) => ({
         match $wrapped_ptr { ptr => unsafe {
             $crate::unsize::Unsize::unsize_with(
                 ptr, infer_ty,
-                |p| $(-> *mut $T)? { p },
+                |p| p,
             )
         }}
     }

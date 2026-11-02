@@ -9,7 +9,10 @@ use {
         // extends public one.
         prelude::*,
 
-        brand::NoBrandedPlace,
+        brand::{
+            NoBrandedPlace,
+            hlist::HList,
+        },
     },
     ::core::{
         marker::PhantomData as PD,
@@ -19,6 +22,9 @@ use {
             MaybeUninit as MU,
         },
         ptr,
+    },
+    ::never_say_never::{
+        Never,
     },
 };
 

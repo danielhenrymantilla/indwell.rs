@@ -3,7 +3,10 @@
 use ::core::ptr;
 use ::enroot::{
     prelude::*,
-    brand::BrandedPlace,
+    brand::{
+        BrandedPlace,
+        hlist::HList,
+    },
 };
 
 pub

@@ -1,9 +1,5 @@
-use ::never_say_never::{
-    Never,
-};
 use crate::{
     brand::hlist::SliceElem,
-    indwell::GhostInitProof,
 };
 
 use super::*;
@@ -407,7 +403,7 @@ impl<T, FullSlicePlace : IsBrandedPlace> SoulCollector<'static, T, FullSlicePlac
             Err(MissingSouls)
         } else {
             Ok(unsafe {
-                GhostInitProof::branded_place_assume_init().indwell(husk)
+                indwell::GhostInitProof::branded_place_assume_init().indwell(husk)
             })
         }
     }
