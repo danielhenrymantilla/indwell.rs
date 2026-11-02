@@ -51,4 +51,7 @@ use ::proc_macros;
 pub
 mod unsize;
 
+pub
+mod unsized_uninit;
+
 mod utils;
